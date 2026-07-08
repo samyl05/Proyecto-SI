@@ -41,14 +41,14 @@ import {
 
 // Paleta de colores para gráficos
 const COLORS = {
-  A: '#95B300', // Esmeralda
+  A: '#81ba1e', // Esmeralda
   B: '#7627c4', // Indigo
   C: '#f755f7d4', // Purpura
   D: '#f59e0b', // Ámbar
   F: '#3fdff4e1', // Rosa/Rojo
 };
 
-const PIE_COLORS = ['#95B300', '#7627c4', '#f755f7d4', '#f59e0b', '#3fdff4e1'];
+const PIE_COLORS = ['#81ba1e', '#7627c4', '#f755f7d4', '#f59e0b', '#3fdff4e1'];
 
 export default function Home() {
   // Estado de Autenticación
@@ -1093,7 +1093,7 @@ export default function Home() {
                           labelStyle={{ fontWeight: 'bold' }}
                           formatter={(value) => [`${value}%`, 'Asistencia Promedio']}
                         />
-                        <Bar dataKey="avgAttendance" fill="#95B300" radius={[6, 6, 0, 0]} barSize={25} />
+                        <Bar dataKey="avgAttendance" fill="#81ba1e" radius={[6, 6, 0, 0]} barSize={25} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
