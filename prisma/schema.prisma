@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(PROFESOR)
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  PROFESOR
+}
+
+model Student {
+  id                   Int    @id @default(autoincrement())
+  studentId             Int    @map("student_id")
+  weeklySelfStudyHours  Float  @map("weekly_self_study_hours")
+  attendancePercentage  Float  @map("attendance_percentage")
+  classParticipation    Float  @map("class_participation")
+  totalScore            Float  @map("total_score")
+  grade                 String
+
+  @@map("students")
+  @@index([grade])
+  @@index([weeklySelfStudyHours])
+  @@index([attendancePercentage])
+  @@index([classParticipation])
+}
