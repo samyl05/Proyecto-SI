@@ -41,14 +41,14 @@ import {
 
 // Paleta de colores para gráficos
 const COLORS = {
-  A: '#10b981', // Esmeralda
-  B: '#6366f1', // Indigo
-  C: '#a855f7', // Purpura
+  A: '#95B300', // Esmeralda
+  B: '#7627c4', // Indigo
+  C: '#f755f7d4', // Purpura
   D: '#f59e0b', // Ámbar
-  F: '#f43f5e', // Rosa/Rojo
+  F: '#3fdff4e1', // Rosa/Rojo
 };
 
-const PIE_COLORS = ['#10b981', '#6366f1', '#a855f7', '#f59e0b', '#f43f5e'];
+const PIE_COLORS = ['#95B300', '#7627c4', '#f755f7d4', '#f59e0b', '#3fdff4e1'];
 
 export default function Home() {
   // Estado de Autenticación
@@ -977,7 +977,7 @@ export default function Home() {
                         />
                         <Bar dataKey="count" radius={[8, 8, 0, 0]}>
                           {dashboardData.gradeDistribution.map((entry: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[entry.grade as keyof typeof COLORS] || '#6366f1'} />
+                            <Cell key={`cell-${index}`} fill={COLORS[entry.grade as keyof typeof COLORS] || '#7627c4'} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -1003,7 +1003,7 @@ export default function Home() {
                           nameKey="grade"
                         >
                           {dashboardData.gradeDistribution.map((entry: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[entry.grade as keyof typeof COLORS] || '#6366f1'} />
+                            <Cell key={`cell-${index}`} fill={COLORS[entry.grade as keyof typeof COLORS] || '#7627c4'} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -1048,8 +1048,8 @@ export default function Home() {
                       <AreaChart data={dashboardData.studyHoursData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>
                           <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+                            <stop offset="5%" stopColor="#7627c4" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#7627c4" stopOpacity={0.0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#1e293b' : '#f1f5f9'} vertical={false} />
@@ -1062,10 +1062,10 @@ export default function Home() {
                             borderRadius: 12,
                             color: theme === 'dark' ? '#f8fafc' : '#0f172a'
                           }}
-                          labelStyle={{ fontWeight: 'bold', color: '#a855f7' }}
+                          labelStyle={{ fontWeight: 'bold', color: '#f755f7d4' }}
                           formatter={(value) => [`${value} / 100`, 'Nota Promedio']}
                         />
-                        <Area type="monotone" dataKey="avgScore" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#scoreGrad)" />
+                        <Area type="monotone" dataKey="avgScore" stroke="#7627c4" strokeWidth={3} fillOpacity={1} fill="url(#scoreGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -1093,7 +1093,7 @@ export default function Home() {
                           labelStyle={{ fontWeight: 'bold' }}
                           formatter={(value) => [`${value}%`, 'Asistencia Promedio']}
                         />
-                        <Bar dataKey="avgAttendance" fill="#10b981" radius={[6, 6, 0, 0]} barSize={25} />
+                        <Bar dataKey="avgAttendance" fill="#95B300" radius={[6, 6, 0, 0]} barSize={25} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
