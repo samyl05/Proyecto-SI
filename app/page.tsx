@@ -40,15 +40,23 @@ import {
 } from 'recharts';
 
 // Paleta de colores para gráficos
-const COLORS = {
-  A: '#81ba1e', // Esmeralda
-  B: '#7627c4', // Indigo
-  C: '#f755f7d4', // Purpura
-  D: '#f59e0b', // Ámbar
-  F: '#3fdff4e1', // Rosa/Rojo
+const LIGHT_COLORS = {
+  A: '#10b981', // Emerald-500
+  B: '#6366f1', // Indigo-500
+  C: '#a855f7', // Purple-500
+  D: '#f59e0b', // Amber-500
+  F: '#ef4444', // Red-500
 };
 
-const PIE_COLORS = ['#81ba1e', '#7627c4', '#f755f7d4', '#f59e0b', '#3fdff4e1'];
+const DARK_COLORS = {
+  A: '#34d399', // Emerald-400
+  B: '#818cf8', // Indigo-400
+  C: '#c084fc', // Purple-400
+  D: '#fbbf24', // Amber-400
+  F: '#f87171', // Red-400
+};
+
+
 
 export default function Home() {
   // Estado de Autenticación
@@ -198,6 +206,7 @@ export default function Home() {
 
   // Estado del Tema
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const COLORS = theme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
 
   // Inicializar tema al montar
   useEffect(() => {
@@ -444,7 +453,7 @@ export default function Home() {
               <GraduationCap className="w-8 h-8" />
             </div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex justify-center items-center gap-2">
-              Redimiento Estudiantil <span className="text-indigo-600 dark:text-indigo-400 font-medium text-lg px-2 py-0.5 bg-indigo-550/10 dark:bg-indigo-500/10 rounded-md border border-indigo-100 dark:border-indigo-500/20">BI</span>
+              Redimiento Estudiantil <span className="text-indigo-600 dark:text-indigo-400 font-medium text-lg px-2 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/10 rounded-md border border-indigo-100 dark:border-indigo-500/20">BI</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
               Plataforma de soporte analítico y predictivo de rendimiento académico
@@ -459,7 +468,7 @@ export default function Home() {
                 setLoginError('');
               }}
               className={`flex-1 py-4 text-sm font-semibold tracking-wide transition relative cursor-pointer ${
-                authTab === 'login' ? 'text-slate-900 dark:text-white font-bold' : 'text-slate-550 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                authTab === 'login' ? 'text-slate-900 dark:text-white font-bold' : 'text-slate-500 dark:text-slate-400 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               Iniciar Sesión
@@ -473,7 +482,7 @@ export default function Home() {
                 setRegError('');
               }}
               className={`flex-1 py-4 text-sm font-semibold tracking-wide transition relative cursor-pointer ${
-                authTab === 'register' ? 'text-slate-900 dark:text-white font-bold' : 'text-slate-555 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                authTab === 'register' ? 'text-slate-900 dark:text-white font-bold' : 'text-slate-500 dark:text-slate-400 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               Registrarse
@@ -530,7 +539,7 @@ export default function Home() {
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-450 dark:text-slate-500 italic mt-1 block">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 italic mt-1 block">
                     * Nota: Las contraseñas se almacenan en texto plano en la BD.
                   </p>
                 </div>
@@ -556,14 +565,14 @@ export default function Home() {
                 )}
 
                 {regSuccess && (
-                  <div className="p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 text-emerald-655 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2">
+                  <div className="p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2">
                     <Check className="w-4 h-4 shrink-0" />
                     <span>¡Registro exitoso! Redirigiendo a Iniciar Sesión...</span>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
                     Nombre Completo
                   </label>
                   <div className="relative">
@@ -582,7 +591,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
                     Correo Electrónico
                   </label>
                   <div className="relative">
@@ -601,7 +610,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
                     Tipo de Usuario (Rol)
                   </label>
                   <div className="grid grid-cols-2 gap-3">
@@ -611,7 +620,7 @@ export default function Home() {
                       className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition duration-200 cursor-pointer ${
                         regRole === 'PROFESOR'
                           ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:bg-slate-100/50'
+                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-500 dark:text-slate-400 hover:bg-slate-100/50'
                       }`}
                     >
                       Profesor
@@ -622,7 +631,7 @@ export default function Home() {
                       className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition duration-200 cursor-pointer ${
                         regRole === 'ESTUDIANTE'
                           ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:bg-slate-100/50'
+                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-500 dark:text-slate-400 hover:bg-slate-100/50'
                       }`}
                     >
                       Estudiante
@@ -632,7 +641,7 @@ export default function Home() {
 
                 {regRole === 'ESTUDIANTE' && (
                   <div className="space-y-1.5 transition-all duration-200">
-                    <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
                       ID del Estudiante
                     </label>
                     <div className="relative">
@@ -648,14 +657,14 @@ export default function Home() {
                         className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-450 dark:text-slate-500 italic mt-1 block">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 italic mt-1 block">
                       * Debe coincidir con su ID asignado en la base de datos de rendimiento académico.
                     </p>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
                     Contraseña
                   </label>
                   <div className="relative">
@@ -671,7 +680,7 @@ export default function Home() {
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-450 dark:text-slate-500 italic mt-1 block">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 italic mt-1 block">
                     * Nota: La contraseña será almacenada sin encriptar, tal como se solicitó.
                   </p>
                 </div>
@@ -703,7 +712,7 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 uppercase">
-                Mi Rendimiento Académico <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-650 dark:text-emerald-400 font-bold rounded border border-emerald-100 dark:border-emerald-500/20">ESTUDIANTE</span>
+                Mi Rendimiento Académico <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 font-bold rounded border border-emerald-100 dark:border-emerald-500/20">ESTUDIANTE</span>
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 Portal de rendimiento y simulador predictivo individual
@@ -722,7 +731,7 @@ export default function Home() {
 
             {/* Perfil del Usuario */}
             <div className="flex items-center gap-3 bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/85 px-4 py-1.5 rounded-2xl shadow-sm">
-              <div className="w-7 h-7 bg-emerald-650 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-inner">
+              <div className="w-7 h-7 bg-emerald-600 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-inner">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="text-left">
@@ -765,13 +774,13 @@ export default function Home() {
                 <div className="md:col-span-1 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden flex flex-col justify-between">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
                   <div>
-                    <h3 className="text-xs font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-3">Ficha de Estudiante</h3>
+                    <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Ficha de Estudiante</h3>
                     <h2 className="text-lg font-black text-slate-900 dark:text-white mb-1">{user.name}</h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Correo: {user.email}</p>
-                    <p className="text-xs text-slate-550 dark:text-slate-400 font-medium">Estudiante ID: <span className="font-bold text-slate-900 dark:text-white">{user.studentId}</span></p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-400 font-medium">Estudiante ID: <span className="font-bold text-slate-900 dark:text-white">{user.studentId}</span></p>
                   </div>
                   <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
-                    <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold uppercase tracking-wider">Estado de Calificación</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Estado de Calificación</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className={`text-xs font-black px-3 py-1 rounded-full ${
                         studentInfo.totalScore >= 70
@@ -789,26 +798,26 @@ export default function Home() {
                   <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
                   <div className="flex flex-col md:flex-row items-center gap-6">
                     <div className="text-center md:text-left shrink-0">
-                      <p className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-1">
+                      <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
                         Tu Calificación Actual
                       </p>
                       <div className="flex items-baseline justify-center md:justify-start gap-1">
                         <span className="text-5xl font-black text-slate-900 dark:text-white">{studentInfo.totalScore}</span>
                         <span className="text-slate-500 dark:text-slate-400 font-bold text-sm">/ 100 pts</span>
                       </div>
-                      <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1 rounded-full font-black text-xs mt-2.5">
+                      <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1 rounded-full font-black text-xs mt-2.5">
                         Letra: <span className="text-sm font-black text-slate-800 dark:text-white">{studentInfo.grade}</span>
                       </div>
                     </div>
 
                     <div className="flex-1 w-full">
-                      <p className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-2">
+                      <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
                         Comentario de Rendimiento
                       </p>
                       <div className={`p-4 rounded-2xl border ${
                         studentInfo.totalScore >= 70
-                          ? 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/15 text-emerald-800 dark:text-emerald-350'
-                          : 'bg-rose-50/50 dark:bg-rose-500/5 border-rose-100 dark:border-rose-500/15 text-rose-800 dark:text-rose-350'
+                          ? 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/15 text-emerald-800 dark:text-emerald-500 dark:text-emerald-400'
+                          : 'bg-rose-50/50 dark:bg-rose-500/5 border-rose-100 dark:border-rose-500/15 text-rose-800 dark:text-rose-500 dark:text-rose-400'
                       }`}>
                         <p className="text-sm font-bold flex items-center gap-2">
                           {studentInfo.totalScore >= 70 ? (
@@ -832,7 +841,7 @@ export default function Home() {
               {/* Grid de métricas actuales */}
               <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 shadow-sm flex items-center gap-4">
-                  <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-500/15">
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-500/15">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
@@ -840,7 +849,7 @@ export default function Home() {
                       Horas de Auto-Estudio
                     </p>
                     <h3 className="text-xl font-black text-slate-800 dark:text-white mt-0.5">
-                      {studentInfo.weeklySelfStudyHours} <span className="text-xs text-slate-550">hrs/semana</span>
+                      {studentInfo.weeklySelfStudyHours} <span className="text-xs text-slate-500 dark:text-slate-400">hrs/semana</span>
                     </h3>
                   </div>
                 </div>
@@ -868,7 +877,7 @@ export default function Home() {
                       Participación en Clase
                     </p>
                     <h3 className="text-xl font-black text-slate-800 dark:text-white mt-0.5">
-                      {studentInfo.classParticipation} <span className="text-xs text-slate-550">/ 10</span>
+                      {studentInfo.classParticipation} <span className="text-xs text-slate-500 dark:text-slate-400">/ 10</span>
                     </h3>
                   </div>
                 </div>
@@ -878,7 +887,7 @@ export default function Home() {
               <section className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-indigo-500/20 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden transition-all duration-300">
                 <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
                 <div className="flex items-center gap-2 mb-4">
-                  <Brain className="w-5 h-5 text-indigo-650 dark:text-indigo-400 animate-pulse" />
+                  <Brain className="w-5 h-5 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 animate-pulse" />
                   <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
                     Simulador Personal Predictivo: Modifica tus Métricas
                   </h2>
@@ -941,19 +950,19 @@ export default function Home() {
                   <div className="md:col-span-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 min-h-[180px] flex items-center justify-center text-center">
                     {simResult?.success ? (
                       <div className="w-full max-w-sm">
-                        <p className="text-[10px] font-bold text-slate-450 dark:text-slate-550 uppercase tracking-widest mb-2">
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">
                           Tu Puntaje Proyectado
                         </p>
                         <div className="flex items-baseline justify-center gap-1 mb-2">
                           <span className="text-5xl font-black text-slate-900 dark:text-white">{simResult.predictedScore}</span>
                           <span className="text-slate-500 dark:text-slate-400 font-bold text-sm">/ 100 pts</span>
                         </div>
-                        <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1.5 rounded-full font-black text-xs mb-3.5">
+                        <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1.5 rounded-full font-black text-xs mb-3.5">
                           Letra Estimada: <span className="text-sm font-black text-slate-800 dark:text-white">{simResult.predictedGrade}</span>
                         </div>
                         {Number(simResult.predictedScore) < 70 ? (
                           <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-100 dark:border-rose-500/20 text-left flex items-start gap-2.5 text-rose-700 dark:text-rose-300">
-                            <AlertTriangle className="w-4.5 h-4.5 text-rose-500 dark:text-rose-455 shrink-0 mt-0.5" />
+                            <AlertTriangle className="w-4.5 h-4.5 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
                             <div>
                               <span className="font-bold block mb-0.5">Alerta de Riesgo Académico:</span>
                               {simResult.comment || 'El alumno está bajo el umbral mínimo aprobatorio. Requiere tutorías.'}
@@ -961,7 +970,7 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-100 dark:border-emerald-500/20 text-left flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300">
-                            <GraduationCap className="w-4.5 h-4.5 text-emerald-500 dark:text-emerald-455 shrink-0 mt-0.5" />
+                            <GraduationCap className="w-4.5 h-4.5 text-emerald-500 dark:text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
                             <div>
                               <span className="font-bold block mb-0.5">Rendimiento Aprobatorio:</span>
                               {simResult.comment || 'Las proyecciones indican un rendimiento académico seguro.'}
@@ -971,7 +980,7 @@ export default function Home() {
                       </div>
                     ) : (
                       <div className="text-slate-400 dark:text-slate-500 text-xs max-w-xs">
-                        <Sparkles className="w-8 h-8 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
+                        <Sparkles className="w-8 h-8 text-slate-400 dark:text-slate-500 dark:text-slate-700 mx-auto mb-3" />
                         Modifica los valores del formulario izquierdo para recalcular y predecir tu rendimiento académico simulado en tiempo real.
                       </div>
                     )}
@@ -996,7 +1005,7 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 uppercase">
-              Redimiento Estudiantil <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-650 dark:text-indigo-400 font-bold rounded border border-indigo-100 dark:border-indigo-500/20">BI</span>
+              Redimiento Estudiantil <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 font-bold rounded border border-indigo-100 dark:border-indigo-500/20">BI</span>
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               Plataforma de soporte analítico de datos educativos
@@ -1072,7 +1081,7 @@ export default function Home() {
               className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer relative ${
                 activeTab === 'requests'
                   ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-white dark:bg-slate-900 text-slate-650 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
               }`}
             >
               Solicitudes de Registro
@@ -1120,7 +1129,7 @@ export default function Home() {
             )}
 
             {!requestsLoading && !requestsError && pendingRequests.length === 0 && (
-              <div className="py-12 text-center text-slate-450 dark:text-slate-500 text-xs">
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">
                 <Check className="w-8 h-8 text-emerald-500 mx-auto mb-3" />
                 No hay solicitudes de registro pendientes de aprobación.
               </div>
@@ -1147,8 +1156,8 @@ export default function Home() {
                         <td className="py-3.5 px-4">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
                             req.role === 'PROFESOR'
-                              ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-400'
-                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-650 dark:text-emerald-400'
+                              ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400'
+                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400'
                           }`}>
                             {req.role}
                           </span>
@@ -1204,7 +1213,7 @@ export default function Home() {
                 >
                   Todos
                 </button>
-                <span className="text-slate-350 dark:text-slate-700 text-[9px] font-bold">|</span>
+                <span className="text-slate-400 dark:text-slate-500 dark:text-slate-700 text-[9px] font-bold">|</span>
                 <button
                   onClick={clearGrades}
                   className="text-[9px] font-bold text-slate-500 dark:text-slate-400 hover:underline cursor-pointer"
@@ -1223,7 +1232,7 @@ export default function Home() {
                     onClick={() => toggleGradeFilter(g)}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-all duration-200 cursor-pointer ${
                       active
-                        ? 'bg-indigo-55 dark:bg-indigo-600/20 border-indigo-500 dark:border-indigo-500 text-indigo-600 dark:text-indigo-300 shadow'
+                        ? 'bg-indigo-50 dark:bg-indigo-600/20 border-indigo-500 dark:border-indigo-500 text-indigo-600 dark:text-indigo-300 shadow'
                         : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800/80 text-slate-500 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
@@ -1240,7 +1249,7 @@ export default function Home() {
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                 Horas de Estudio Semanales
               </span>
-              <span className="text-xs font-bold text-indigo-655 dark:text-indigo-400">
+              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 dark:text-indigo-400">
                 {filterStudyMin} - {filterStudyMax} hrs
               </span>
             </div>
@@ -1293,7 +1302,7 @@ export default function Home() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-slate-550 dark:text-slate-500 font-bold uppercase">Máximo</label>
+                <label className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase">Máximo</label>
                 <input
                   type="range"
                   min="0"
@@ -1312,7 +1321,7 @@ export default function Home() {
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                 Participación (1-10)
               </span>
-              <span className="text-xs font-bold text-purple-650 dark:text-purple-400">
+              <span className="text-xs font-bold text-purple-600 dark:text-purple-400 dark:text-purple-400">
                 {filterParticipationMin} - {filterParticipationMax} pts
               </span>
             </div>
@@ -1343,7 +1352,7 @@ export default function Home() {
           </div>
 
           {/* Indicación de Auto-Aplicación */}
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-450 dark:text-slate-500 flex items-center gap-1.5 italic justify-center text-center">
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1.5 italic justify-center text-center">
             <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
             Los filtros se aplican automáticamente
           </div>
@@ -1356,7 +1365,7 @@ export default function Home() {
             <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-indigo-500/20 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden transition-all duration-300">
               <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
               <div className="flex items-center gap-2 mb-4">
-                <Brain className="w-5 h-5 text-indigo-650 dark:text-indigo-400 animate-pulse" />
+                <Brain className="w-5 h-5 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 animate-pulse" />
                 <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
                   Simulador de Rendimiento Individual (Algoritmo Predictivo)
                 </h2>
@@ -1482,7 +1491,7 @@ export default function Home() {
               <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* KPI 1 */}
                 <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 hover:border-indigo-500/30 transition duration-300 shadow-sm dark:shadow flex items-center gap-4">
-                  <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-500/15">
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-500/15">
                     <Users className="w-5 h-5" />
                   </div>
                   <div>
@@ -1497,14 +1506,14 @@ export default function Home() {
 
                 {/* KPI 2 */}
                 <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 hover:border-emerald-500/30 transition duration-300 shadow-sm dark:shadow flex items-center gap-4">
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-650 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-500/15">
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-500/15">
                     <Percent className="w-5 h-5" />
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
                       Aprobación %
                     </p>
-                    <p className="text-xl font-black text-emerald-650 dark:text-emerald-400 mt-0.5">
+                    <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 mt-0.5">
                       {dashboardData.kpis.passRate}%
                     </p>
                   </div>
@@ -1512,7 +1521,7 @@ export default function Home() {
 
                 {/* KPI 3 */}
                 <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 hover:border-purple-500/30 transition duration-300 shadow-sm dark:shadow flex items-center gap-4">
-                  <div className="p-3 bg-purple-50 dark:bg-purple-500/10 text-purple-650 dark:text-purple-400 rounded-2xl border border-purple-100 dark:border-purple-500/15">
+                  <div className="p-3 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 dark:text-purple-400 rounded-2xl border border-purple-100 dark:border-purple-500/15">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
@@ -1639,8 +1648,8 @@ export default function Home() {
                       <AreaChart data={dashboardData.studyHoursData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>
                           <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#7627c4" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#7627c4" stopOpacity={0.0} />
+                            <stop offset="5%" stopColor={theme === 'dark' ? '#c084fc' : '#a855f7'} stopOpacity={0.25} />
+                            <stop offset="95%" stopColor={theme === 'dark' ? '#c084fc' : '#a855f7'} stopOpacity={0.0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#1e293b' : '#f1f5f9'} vertical={false} />
@@ -1653,10 +1662,10 @@ export default function Home() {
                             borderRadius: 12,
                             color: theme === 'dark' ? '#f8fafc' : '#0f172a'
                           }}
-                          labelStyle={{ fontWeight: 'bold', color: '#f755f7d4' }}
+                          labelStyle={{ fontWeight: 'bold', color: theme === 'dark' ? '#c084fc' : '#a855f7' }}
                           formatter={(value) => [`${value} / 100`, 'Nota Promedio']}
                         />
-                        <Area type="monotone" dataKey="avgScore" stroke="#7627c4" strokeWidth={3} fillOpacity={1} fill="url(#scoreGrad)" />
+                        <Area type="monotone" dataKey="avgScore" stroke={theme === 'dark' ? '#c084fc' : '#a855f7'} strokeWidth={3} fillOpacity={1} fill="url(#scoreGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -1684,7 +1693,7 @@ export default function Home() {
                           labelStyle={{ fontWeight: 'bold' }}
                           formatter={(value) => [`${value}%`, 'Asistencia Promedio']}
                         />
-                        <Bar dataKey="avgAttendance" fill="#81ba1e" radius={[6, 6, 0, 0]} barSize={25} />
+                        <Bar dataKey="avgAttendance" fill={theme === 'dark' ? '#34d399' : '#10b981'} radius={[6, 6, 0, 0]} barSize={25} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
