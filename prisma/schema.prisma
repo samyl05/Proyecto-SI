@@ -13,12 +13,15 @@ model User {
   email     String   @unique
   password  String
   role      Role     @default(PROFESOR)
+  approved  Boolean  @default(false)
+  studentId Int?     @unique @map("student_id")
   createdAt DateTime @default(now())
 }
 
 enum Role {
   ADMIN
   PROFESOR
+  ESTUDIANTE
 }
 
 model Student {

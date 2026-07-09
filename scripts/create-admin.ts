@@ -9,12 +9,14 @@ async function main() {
     where: { email },
     update: {
       password: password,
+      approved: true,
     },
     create: {
       name: 'Administrador',
       email,
       password: password,
       role: 'ADMIN',
+      approved: true,
     },
   });
 

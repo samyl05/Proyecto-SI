@@ -3,16 +3,64 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json();
+    const { name, email, password, role, studentId } = await request.json();
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !role) {
       return NextResponse.json(
-        { success: false, error: 'Todos los campos son obligatorios' },
+        { success: false, error: 'Todos los campos obligatorios deben completarse' },
         { status: 400 }
       );
     }
 
-    // Verificar si el usuario ya existe
+    if (role !== 'PROFESOR' && role !== 'ESTUDIANTE') {
+      return NextResponse.json(
+        { success: false, error: 'Rol no válido' },
+        { status: 400 }
+      );
+    }
+
+    let parsedStudentId: number | null = null;
+    if (role === 'ESTUDIANTE') {
+      if (!studentId) {
+        return NextResponse.json(
+          { success: false, error: 'El ID del estudiante es requerido para el rol Estudiante' },
+          { status: 400 }
+        );
+      }
+      parsedStudentId = parseInt(studentId, 10);
+      if (isNaN(parsedStudentId)) {
+        return NextResponse.json(
+          { success: false, error: 'El ID del estudiante debe ser un número válido' },
+          { status: 400 }
+        );
+      }
+
+      // Validar si el ID de estudiante existe en la base de datos de rendimiento académico
+      const studentExists = await prisma.student.findFirst({
+        where: { studentId: parsedStudentId },
+      });
+
+      if (!studentExists) {
+        return NextResponse.json(
+          { success: false, error: 'El ID del estudiante no existe en la base de datos de rendimiento académico' },
+          { status: 400 }
+        );
+      }
+
+      // Validar si el ID de estudiante ya está asociado a otro usuario
+      const studentIdTaken = await prisma.user.findFirst({
+        where: { studentId: parsedStudentId },
+      });
+
+      if (studentIdTaken) {
+        return NextResponse.json(
+          { success: false, error: 'Este ID de estudiante ya está registrado con otro usuario' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Verificar si el correo ya existe
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -24,23 +72,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Crear el usuario con la contraseña en texto plano
+    // Crear el usuario (inactivo por defecto: approved = false)
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password, // Almacenado en texto plano por requerimiento
-        role: 'PROFESOR',
+        password, // Texto plano por requerimiento del proyecto
+        role,
+        studentId: parsedStudentId,
+        approved: false, // Requiere aprobación del admin
       },
     });
 
     return NextResponse.json({
       success: true,
+      message: 'Registro exitoso. Su cuenta está pendiente de aprobación por el administrador.',
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
+        approved: user.approved,
       },
     });
   } catch (error: any) {

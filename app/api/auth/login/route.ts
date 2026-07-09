@@ -26,11 +26,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Verificar si la cuenta está aprobada
+    if (!user.approved) {
+      return NextResponse.json(
+        { success: false, error: 'Su cuenta está pendiente de aprobación por el administrador.' },
+        { status: 403 }
+      );
+    }
+
     const userData = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
+      studentId: user.studentId,
+      approved: user.approved,
     };
 
     // Serializar a base64 para almacenar en la cookie de sesión de forma simple

@@ -14,15 +14,33 @@ export async function POST(request: Request) {
     finalScore = Math.min(100, Math.max(0, finalScore));
 
     let predictedGrade = 'F';
-    if (finalScore >= 90) predictedGrade = 'A';
-    else if (finalScore >= 80) predictedGrade = 'B';
-    else if (finalScore >= 70) predictedGrade = 'C';
-    else if (finalScore >= 60) predictedGrade = 'D';
+    let comment = 'Insuficiente / Perdido totalmente';
+
+    if (finalScore >= 90) {
+      predictedGrade = 'A';
+      comment = 'Excelente (Máxima nota)';
+    } else if (finalScore >= 80) {
+      predictedGrade = 'B';
+      comment = 'Muy Bueno';
+    } else if (finalScore >= 70) {
+      predictedGrade = 'C';
+      comment = 'Aprobado (Mínimo para pasar)';
+    } else if (finalScore >= 60) {
+      predictedGrade = 'D';
+      comment = 'A punto de perder / Reprobado por poco';
+    } else if (finalScore >= 50) {
+      predictedGrade = 'F';
+      comment = 'Deficiente / Reprobado';
+    } else {
+      predictedGrade = 'F';
+      comment = 'Insuficiente / Perdido totalmente';
+    }
 
     return NextResponse.json({
       success: true,
       predictedScore: finalScore.toFixed(1),
       predictedGrade,
+      comment,
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Error al procesar la predicción' }, { status: 500 });

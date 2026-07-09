@@ -66,6 +66,8 @@ export default function Home() {
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<'PROFESOR' | 'ESTUDIANTE'>('PROFESOR');
+  const [regStudentId, setRegStudentId] = useState('');
   const [regError, setRegError] = useState('');
   const [regSubmitting, setRegSubmitting] = useState(false);
   const [regSuccess, setRegSuccess] = useState(false);
@@ -91,6 +93,108 @@ export default function Home() {
   const [simResult, setSimResult] = useState<any>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
+
+  // Estado de Tab para la navegación (Profesor/Admin)
+  const [activeTab, setActiveTab] = useState<'analysis' | 'requests'>('analysis');
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsError, setRequestsError] = useState('');
+
+  // Estado para Estudiantes
+  const [studentInfo, setStudentInfo] = useState<any>(null);
+  const [studentInfoLoading, setStudentInfoLoading] = useState(false);
+  const [studentInfoError, setStudentInfoError] = useState('');
+
+  const getGradeComment = (score: number) => {
+    if (score >= 90) return 'Excelente (Máxima nota)';
+    if (score >= 80) return 'Muy Bueno';
+    if (score >= 70) return 'Aprobado (Mínimo para pasar)';
+    if (score >= 60) return 'A punto de perder / Reprobado por poco';
+    if (score >= 50) return 'Deficiente / Reprobado';
+    return 'Insuficiente / Perdido totalmente';
+  };
+
+  const fetchRequests = async () => {
+    setRequestsLoading(true);
+    setRequestsError('');
+    try {
+      const res = await fetch('/api/admin/requests');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPendingRequests(data.requests);
+      } else {
+        setRequestsError(data.error || 'Error al obtener solicitudes');
+      }
+    } catch (err) {
+      setRequestsError('Error de red al obtener solicitudes');
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  const handleRequestAction = async (userId: string, action: 'approve' | 'reject') => {
+    try {
+      const res = await fetch('/api/admin/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        fetchRequests();
+      } else {
+        alert(data.error || 'Error al procesar la solicitud');
+      }
+    } catch (err) {
+      alert('Error de red al procesar la solicitud');
+    }
+  };
+
+  const fetchStudentInfo = async () => {
+    setStudentInfoLoading(true);
+    setStudentInfoError('');
+    try {
+      const res = await fetch('/api/student/info');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStudentInfo(data.student);
+        setSimHours(data.student.weeklySelfStudyHours.toString());
+        setSimAttendance(data.student.attendancePercentage.toString());
+        setSimParticipation(data.student.classParticipation.toString());
+        
+        // Simulación automática para el estudiante
+        const predictRes = await fetch('/api/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            hours: data.student.weeklySelfStudyHours,
+            attendance: data.student.attendancePercentage,
+            participation: data.student.classParticipation,
+          }),
+        });
+        const predictData = await predictRes.json();
+        setSimResult(predictData);
+      } else {
+        setStudentInfoError(data.error || 'Error al obtener información de estudiante');
+      }
+    } catch (err) {
+      setStudentInfoError('Error de red al obtener información de estudiante');
+    } finally {
+      setStudentInfoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && user.role === 'ADMIN' && activeTab === 'requests') {
+      fetchRequests();
+    }
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    if (user && user.role === 'ESTUDIANTE') {
+      fetchStudentInfo();
+    }
+  }, [user]);
 
   // Estado del Tema
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -184,21 +288,29 @@ export default function Home() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: regName, email: regEmail, password: regPassword }),
+        body: JSON.stringify({
+          name: regName,
+          email: regEmail,
+          password: regPassword,
+          role: regRole,
+          studentId: regRole === 'ESTUDIANTE' ? regStudentId : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setRegSuccess(true);
         setLoginEmail(regEmail);
         setLoginPassword(regPassword);
-        // Esperar 1.5s y cambiar a pestaña de login precompletada
+        // Esperar 4s para que lean el aviso de aprobación y cambiar a pestaña de login
         setTimeout(() => {
           setAuthTab('login');
           setRegSuccess(false);
           setRegName('');
           setRegEmail('');
           setRegPassword('');
-        }, 1500);
+          setRegRole('PROFESOR');
+          setRegStudentId('');
+        }, 4000);
       } else {
         setRegError(data.error || 'Error al registrar el usuario');
       }
@@ -490,6 +602,60 @@ export default function Home() {
 
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                    Tipo de Usuario (Rol)
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRegRole('PROFESOR')}
+                      className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition duration-200 cursor-pointer ${
+                        regRole === 'PROFESOR'
+                          ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:bg-slate-100/50'
+                      }`}
+                    >
+                      Profesor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegRole('ESTUDIANTE')}
+                      className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition duration-200 cursor-pointer ${
+                        regRole === 'ESTUDIANTE'
+                          ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:bg-slate-100/50'
+                      }`}
+                    >
+                      Estudiante
+                    </button>
+                  </div>
+                </div>
+
+                {regRole === 'ESTUDIANTE' && (
+                  <div className="space-y-1.5 transition-all duration-200">
+                    <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                      ID del Estudiante
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                        <GraduationCap className="w-4.5 h-4.5" />
+                      </div>
+                      <input
+                        type="number"
+                        required
+                        placeholder="Ej. 65"
+                        value={regStudentId}
+                        onChange={(e) => setRegStudentId(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-450 dark:text-slate-500 italic mt-1 block">
+                      * Debe coincidir con su ID asignado en la base de datos de rendimiento académico.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
                     Contraseña
                   </label>
                   <div className="relative">
@@ -521,6 +687,300 @@ export default function Home() {
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Vista de Estudiante - Retorno Temprano
+  if (user && user.role === 'ESTUDIANTE') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
+        {/* Header para Estudiantes */}
+        <header className="bg-white/80 dark:bg-slate-900/60 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 sticky top-0 z-40 px-6 py-4 flex items-center justify-between gap-4 transition-colors duration-300">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-tr from-emerald-500 to-teal-505 text-white rounded-xl shadow-lg shadow-emerald-500/10">
+              <GraduationCap className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 uppercase">
+                Mi Rendimiento Académico <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-650 dark:text-emerald-400 font-bold rounded border border-emerald-100 dark:border-emerald-500/20">ESTUDIANTE</span>
+              </h1>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Portal de rendimiento y simulador predictivo individual
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Botón Selector de Tema */}
+            <button
+              onClick={toggleTheme}
+              className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 shadow transition duration-200 cursor-pointer"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            {/* Perfil del Usuario */}
+            <div className="flex items-center gap-3 bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/85 px-4 py-1.5 rounded-2xl shadow-sm">
+              <div className="w-7 h-7 bg-emerald-650 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-inner">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{user.name}</p>
+                <p className="text-[9px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
+                  Estudiante (ID: {user.studentId})
+                </p>
+              </div>
+              <button
+                onClick={handleLogout}
+                title="Cerrar Sesión"
+                className="text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition pl-2 border-l border-slate-200 dark:border-slate-800 ml-1 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+          {studentInfoLoading && (
+            <div className="h-[300px] flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
+              <div className="w-10 h-10 border-4 border-emerald-200 dark:border-emerald-500/20 border-t-emerald-600 dark:border-t-emerald-505 rounded-full animate-spin mb-3"></div>
+              <span className="text-xs uppercase tracking-wider font-semibold">Cargando tus datos académicos...</span>
+            </div>
+          )}
+
+          {studentInfoError && (
+            <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-sm rounded-3xl flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span>{studentInfoError}</span>
+            </div>
+          )}
+
+          {studentInfo && (
+            <div className="space-y-6">
+              {/* Sección superior: Datos Reales del Estudiante */}
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Info Card */}
+                <div className="md:col-span-1 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden flex flex-col justify-between">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-3">Ficha de Estudiante</h3>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white mb-1">{user.name}</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Correo: {user.email}</p>
+                    <p className="text-xs text-slate-550 dark:text-slate-400 font-medium">Estudiante ID: <span className="font-bold text-slate-900 dark:text-white">{user.studentId}</span></p>
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                    <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold uppercase tracking-wider">Estado de Calificación</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className={`text-xs font-black px-3 py-1 rounded-full ${
+                        studentInfo.totalScore >= 70
+                          ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20'
+                          : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20'
+                      }`}>
+                        {studentInfo.totalScore >= 70 ? 'APROBADO' : 'REPROBADO'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score and Comment Card */}
+                <div className="md:col-span-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden flex flex-col justify-center">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="text-center md:text-left shrink-0">
+                      <p className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-1">
+                        Tu Calificación Actual
+                      </p>
+                      <div className="flex items-baseline justify-center md:justify-start gap-1">
+                        <span className="text-5xl font-black text-slate-900 dark:text-white">{studentInfo.totalScore}</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-bold text-sm">/ 100 pts</span>
+                      </div>
+                      <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1 rounded-full font-black text-xs mt-2.5">
+                        Letra: <span className="text-sm font-black text-slate-800 dark:text-white">{studentInfo.grade}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 w-full">
+                      <p className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-2">
+                        Comentario de Rendimiento
+                      </p>
+                      <div className={`p-4 rounded-2xl border ${
+                        studentInfo.totalScore >= 70
+                          ? 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/15 text-emerald-800 dark:text-emerald-350'
+                          : 'bg-rose-50/50 dark:bg-rose-500/5 border-rose-100 dark:border-rose-500/15 text-rose-800 dark:text-rose-350'
+                      }`}>
+                        <p className="text-sm font-bold flex items-center gap-2">
+                          {studentInfo.totalScore >= 70 ? (
+                            <GraduationCap className="w-5 h-5 text-emerald-500" />
+                          ) : (
+                            <AlertTriangle className="w-5 h-5 text-rose-500" />
+                          )}
+                          {getGradeComment(studentInfo.totalScore)}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                          {studentInfo.totalScore >= 70
+                            ? '¡Buen trabajo! Sigues superando el umbral de aprobación establecido del 70%.'
+                            : 'Atención: Tu nota actual está por debajo del umbral mínimo de aprobación del 70%. Recuerda que puedes mejorar tus hábitos de estudio y participación.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Grid de métricas actuales */}
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-500/15">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-505 dark:text-slate-500 uppercase tracking-widest">
+                      Horas de Auto-Estudio
+                    </p>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white mt-0.5">
+                      {studentInfo.weeklySelfStudyHours} <span className="text-xs text-slate-550">hrs/semana</span>
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-teal-50 dark:bg-teal-500/10 text-teal-650 dark:text-teal-400 rounded-2xl border border-teal-100 dark:border-teal-500/15">
+                    <Percent className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-505 dark:text-slate-500 uppercase tracking-widest">
+                      Porcentaje Asistencia
+                    </p>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white mt-0.5">
+                      {studentInfo.attendancePercentage}%
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-amber-50 dark:bg-amber-500/10 text-amber-650 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-500/15">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-505 dark:text-slate-500 uppercase tracking-widest">
+                      Participación en Clase
+                    </p>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white mt-0.5">
+                      {studentInfo.classParticipation} <span className="text-xs text-slate-550">/ 10</span>
+                    </h3>
+                  </div>
+                </div>
+              </section>
+
+              {/* Simulador Personal */}
+              <section className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-indigo-500/20 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden transition-all duration-300">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Brain className="w-5 h-5 text-indigo-650 dark:text-indigo-400 animate-pulse" />
+                  <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                    Simulador Personal Predictivo: Modifica tus Métricas
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  <form onSubmit={handlePredict} className="md:col-span-1 space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-1">
+                        Horas de Estudio Semanales
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="50"
+                        required
+                        value={simHours}
+                        onChange={(e) => setSimHours(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 rounded-xl text-xs text-slate-900 dark:text-slate-100 outline-none transition-colors duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-1">
+                        Porcentaje de Asistencia (%)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        required
+                        value={simAttendance}
+                        onChange={(e) => setSimAttendance(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 rounded-xl text-xs text-slate-900 dark:text-slate-100 outline-none transition-colors duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-1">
+                        Participación (1-10)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        required
+                        value={simParticipation}
+                        onChange={(e) => setSimParticipation(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 rounded-xl text-xs text-slate-900 dark:text-slate-100 outline-none transition-colors duration-200"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={simLoading}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-md shadow-emerald-600/10 active:scale-[0.98] cursor-pointer"
+                    >
+                      {simLoading ? 'Simulando...' : 'Re-Proyectar Mi Nota'}
+                    </button>
+                  </form>
+
+                  <div className="md:col-span-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 min-h-[180px] flex items-center justify-center text-center">
+                    {simResult?.success ? (
+                      <div className="w-full max-w-sm">
+                        <p className="text-[10px] font-bold text-slate-450 dark:text-slate-550 uppercase tracking-widest mb-2">
+                          Tu Puntaje Proyectado
+                        </p>
+                        <div className="flex items-baseline justify-center gap-1 mb-2">
+                          <span className="text-5xl font-black text-slate-900 dark:text-white">{simResult.predictedScore}</span>
+                          <span className="text-slate-500 dark:text-slate-400 font-bold text-sm">/ 100 pts</span>
+                        </div>
+                        <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1.5 rounded-full font-black text-xs mb-3.5">
+                          Letra Estimada: <span className="text-sm font-black text-slate-800 dark:text-white">{simResult.predictedGrade}</span>
+                        </div>
+                        {Number(simResult.predictedScore) < 70 ? (
+                          <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-100 dark:border-rose-500/20 text-left flex items-start gap-2.5 text-rose-700 dark:text-rose-300">
+                            <AlertTriangle className="w-4.5 h-4.5 text-rose-500 dark:text-rose-455 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold block mb-0.5">Alerta de Riesgo Académico:</span>
+                              {simResult.comment || 'El alumno está bajo el umbral mínimo aprobatorio. Requiere tutorías.'}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-100 dark:border-emerald-500/20 text-left flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300">
+                            <GraduationCap className="w-4.5 h-4.5 text-emerald-500 dark:text-emerald-455 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold block mb-0.5">Rendimiento Aprobatorio:</span>
+                              {simResult.comment || 'Las proyecciones indican un rendimiento académico seguro.'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-slate-400 dark:text-slate-500 text-xs max-w-xs">
+                        <Sparkles className="w-8 h-8 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
+                        Modifica los valores del formulario izquierdo para recalcular y predecir tu rendimiento académico simulado en tiempo real.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+        </main>
       </div>
     );
   }
@@ -590,9 +1050,140 @@ export default function Home() {
       </header>
 
       {/* Grid Principal */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 p-6">
-        {/* Barra Lateral de Filtros (Columna 1 en desktop) */}
-        <aside className="lg:col-span-1 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 space-y-6 self-start shadow-sm dark:shadow-xl backdrop-blur-md transition-colors duration-300">
+      <div className="flex-1 p-6">
+        {/* Tabs de Admin */}
+        {user.role === 'ADMIN' && (
+          <div className="flex gap-3 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+                activeTab === 'analysis'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              Análisis de Datos
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('requests');
+                fetchRequests();
+              }}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer relative ${
+                activeTab === 'requests'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-white dark:bg-slate-900 text-slate-650 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              Solicitudes de Registro
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[9px] font-black animate-pulse shadow-md">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'requests' && user.role === 'ADMIN' ? (
+          <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-indigo-500 animate-bounce" />
+                  Solicitudes de Registro Pendientes
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Aprueba o rechaza el registro de nuevos usuarios en el sistema.
+                </p>
+              </div>
+              <button
+                onClick={fetchRequests}
+                className="px-3.5 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl transition cursor-pointer"
+              >
+                Refrescar
+              </button>
+            </div>
+
+            {requestsLoading && (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
+                <div className="w-8 h-8 border-4 border-indigo-200 dark:border-indigo-500/20 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin mb-2.5"></div>
+                <span className="text-xs uppercase tracking-wider font-semibold">Cargando solicitudes...</span>
+              </div>
+            )}
+
+            {requestsError && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span>{requestsError}</span>
+              </div>
+            )}
+
+            {!requestsLoading && !requestsError && pendingRequests.length === 0 && (
+              <div className="py-12 text-center text-slate-450 dark:text-slate-500 text-xs">
+                <Check className="w-8 h-8 text-emerald-500 mx-auto mb-3" />
+                No hay solicitudes de registro pendientes de aprobación.
+              </div>
+            )}
+
+            {!requestsLoading && !requestsError && pendingRequests.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black">
+                      <th className="py-3 px-4">Usuario</th>
+                      <th className="py-3 px-4">Correo</th>
+                      <th className="py-3 px-4">Rol</th>
+                      <th className="py-3 px-4">ID Estudiante</th>
+                      <th className="py-3 px-4">Registro</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs font-medium">
+                    {pendingRequests.map((req) => (
+                      <tr key={req.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition duration-155">
+                        <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{req.name}</td>
+                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">{req.email}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            req.role === 'PROFESOR'
+                              ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-400'
+                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-650 dark:text-emerald-400'
+                          }`}>
+                            {req.role}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-slate-700 dark:text-slate-300 font-mono">
+                          {req.studentId || '-'}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-400 dark:text-slate-500">
+                          {new Date(req.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-2">
+                          <button
+                            onClick={() => handleRequestAction(req.id, 'approve')}
+                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition active:scale-95 cursor-pointer"
+                          >
+                            Aprobar
+                          </button>
+                          <button
+                            onClick={() => handleRequestAction(req.id, 'reject')}
+                            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition active:scale-95 cursor-pointer"
+                          >
+                            Rechazar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Barra Lateral de Filtros (Columna 1 en desktop) */}
+            <aside className="lg:col-span-1 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 space-y-6 self-start shadow-sm dark:shadow-xl backdrop-blur-md transition-colors duration-300">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
@@ -838,20 +1429,20 @@ export default function Home() {
                       <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-1.5 rounded-full font-black text-xs mb-3.5">
                         Letra Estimada: <span className="text-sm font-black text-slate-800 dark:text-white">{simResult.predictedGrade}</span>
                       </div>
-                      {Number(simResult.predictedScore) < 60 ? (
+                      {Number(simResult.predictedScore) < 70 ? (
                         <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-100 dark:border-rose-500/20 text-left flex items-start gap-2.5 text-rose-700 dark:text-rose-300">
                           <AlertTriangle className="w-4.5 h-4.5 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
                           <div>
                             <span className="font-bold block mb-0.5">Alerta de Riesgo Académico:</span>
-                            El alumno está bajo el umbral mínimo aprobatorio. Requiere tutorías.
+                            {simResult.comment || 'El alumno está bajo el umbral mínimo aprobatorio. Requiere tutorías.'}
                           </div>
                         </div>
                       ) : (
                         <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-100 dark:border-emerald-500/20 text-left flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300">
                           <GraduationCap className="w-4.5 h-4.5 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
                           <div>
-                            <span className="font-bold block mb-0.5">Estado Aceptable:</span>
-                            Las proyecciones indican un rendimiento académico seguro.
+                            <span className="font-bold block mb-0.5">Rendimiento Aprobatorio:</span>
+                            {simResult.comment || 'Las proyecciones indican un rendimiento académico seguro.'}
                           </div>
                         </div>
                       )}
@@ -1104,6 +1695,8 @@ export default function Home() {
           )}
         </main>
       </div>
+    )}
+  </div>
 
       {/* Footer Fino */}
       <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-900 py-4 px-6 text-center text-xs text-slate-500 dark:text-slate-500 font-medium transition-colors duration-300">

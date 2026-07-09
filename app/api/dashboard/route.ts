@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       prisma.student.count({
         where: {
           ...where,
-          totalScore: { gte: 60 }, // Se asume aprobado si score >= 60
+          totalScore: { gte: 70 }, // Se asume aprobado si score >= 70
         },
       }),
     ]);
