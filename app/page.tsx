@@ -582,7 +582,7 @@ export default function Home() {
                     <input
                       type="text"
                       required
-                      placeholder="Ej. Dra. Samantha Lozada"
+                      placeholder="Samantha Lozada"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
@@ -601,7 +601,7 @@ export default function Home() {
                     <input
                       type="email"
                       required
-                      placeholder="usuario@bi.com"
+                      placeholder="samantha@gmail.com"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
