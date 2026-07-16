@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import bcrypt from 'bcryptjs';
+import { isValidEmail, normalizeEmail } from '@/lib/validation';
+import { createSessionToken, type SessionUser } from '@/lib/session';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
+    const body = await request.json();
+    const email = normalizeEmail(body.email);
+    const password = typeof body.password === 'string' ? body.password : '';
 
     if (!email || !password) {
       return NextResponse.json(
@@ -13,20 +20,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // Buscar el usuario
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Ingrese un correo electrónico válido' },
+        { status: 400 }
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
     });
 
-    // Comparación directa en texto plano como se solicita
-    if (!user || user.password !== password) {
+    let passwordMatches = false;
+    const passwordIsHashed = Boolean(user?.password?.startsWith('$2'));
+
+    if (user) {
+      passwordMatches = passwordIsHashed
+        ? await bcrypt.compare(password, user.password)
+        : user.password === password;
+    }
+
+    if (!user || !passwordMatches) {
       return NextResponse.json(
         { success: false, error: 'Credenciales incorrectas' },
         { status: 401 }
       );
     }
 
-    // Verificar si la cuenta está aprobada
     if (!user.approved) {
       return NextResponse.json(
         { success: false, error: 'Su cuenta está pendiente de aprobación por el administrador.' },
@@ -34,7 +54,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const userData = {
+    // Migra automáticamente las contraseñas antiguas en texto plano al iniciar sesión.
+    if (!passwordIsHashed) {
+      const passwordHash = await bcrypt.hash(password, 12);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: passwordHash },
+      });
+    }
+
+    const userData: SessionUser = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -43,15 +72,13 @@ export async function POST(request: Request) {
       approved: user.approved,
     };
 
-    // Serializar a base64 para almacenar en la cookie de sesión de forma simple
-    const sessionData = Buffer.from(JSON.stringify(userData)).toString('base64');
-
+    const sessionData = createSessionToken(userData);
     const cookieStore = await cookies();
     cookieStore.set('session', sessionData, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 1 semana
+      maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
 
@@ -59,9 +86,10 @@ export async function POST(request: Request) {
       success: true,
       user: userData,
     });
-  } catch (error: any) {
+  } catch (error) {
+    console.error('Error en el inicio de sesión:', error);
     return NextResponse.json(
-      { success: false, error: 'Error en el inicio de sesión: ' + error.message },
+      { success: false, error: 'No se pudo iniciar sesión. Inténtelo nuevamente.' },
       { status: 500 }
     );
   }

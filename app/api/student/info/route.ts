@@ -1,21 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { verifySessionToken } from '@/lib/session';
 
-async function getSessionUser() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('session')?.value;
-  if (!session) return null;
-  try {
-    return JSON.parse(Buffer.from(session, 'base64').toString('utf-8'));
-  } catch {
-    return null;
-  }
-}
+export const runtime = 'nodejs';
 
 export async function GET() {
   try {
-    const user = await getSessionUser();
+    const cookieStore = await cookies();
+    const user = verifySessionToken(cookieStore.get('session')?.value);
+
     if (!user || user.role !== 'ESTUDIANTE' || !user.studentId) {
       return NextResponse.json(
         { success: false, error: 'No autorizado o no es un estudiante válido' },
@@ -35,7 +29,11 @@ export async function GET() {
     }
 
     return NextResponse.json({ success: true, student: studentInfo });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    console.error('Error al obtener información del estudiante:', error);
+    return NextResponse.json(
+      { success: false, error: 'No se pudo obtener la información del estudiante' },
+      { status: 500 }
+    );
   }
 }

@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { verifySessionToken } from '@/lib/session';
+
+export const runtime = 'nodejs';
 
 async function isAdmin() {
   const cookieStore = await cookies();
-  const session = cookieStore.get('session')?.value;
-  if (!session) return false;
-  try {
-    const decoded = JSON.parse(Buffer.from(session, 'base64').toString('utf-8'));
-    return decoded.role === 'ADMIN';
-  } catch {
-    return false;
-  }
+  const user = verifySessionToken(cookieStore.get('session')?.value);
+  return user?.role === 'ADMIN';
 }
 
 export async function GET() {
@@ -23,11 +20,23 @@ export async function GET() {
     const pendingUsers = await prisma.user.findMany({
       where: { approved: false },
       orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        studentId: true,
+        createdAt: true,
+      },
     });
 
     return NextResponse.json({ success: true, requests: pendingUsers });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    console.error('Error al obtener solicitudes:', error);
+    return NextResponse.json(
+      { success: false, error: 'No se pudieron obtener las solicitudes' },
+      { status: 500 }
+    );
   }
 }
 
@@ -37,9 +46,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 });
     }
 
-    const { userId, action } = await request.json();
+    const body = await request.json();
+    const userId = typeof body.userId === 'string' ? body.userId : '';
+    const action = body.action;
 
-    if (!userId || !action || (action !== 'approve' && action !== 'reject')) {
+    if (!userId || (action !== 'approve' && action !== 'reject')) {
       return NextResponse.json({ success: false, error: 'Parámetros inválidos' }, { status: 400 });
     }
 
@@ -49,13 +60,15 @@ export async function POST(request: Request) {
         data: { approved: true },
       });
       return NextResponse.json({ success: true, message: 'Usuario aprobado con éxito' });
-    } else {
-      await prisma.user.delete({
-        where: { id: userId },
-      });
-      return NextResponse.json({ success: true, message: 'Solicitud rechazada con éxito' });
     }
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+    await prisma.user.delete({ where: { id: userId } });
+    return NextResponse.json({ success: true, message: 'Solicitud rechazada con éxito' });
+  } catch (error) {
+    console.error('Error al procesar solicitud:', error);
+    return NextResponse.json(
+      { success: false, error: 'No se pudo procesar la solicitud' },
+      { status: 500 }
+    );
   }
 }

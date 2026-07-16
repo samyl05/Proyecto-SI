@@ -1,57 +1,115 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import { verifySessionToken } from '@/lib/session';
+
+export const runtime = 'nodejs';
+
+const ALLOWED_GRADES = new Set(['A', 'B', 'C', 'D', 'F']);
+
+type StudentWhereInput = {
+  grade: { in: string[] };
+  weeklySelfStudyHours: { gte: number; lte: number };
+  attendancePercentage: { gte: number; lte: number };
+  classParticipation: { gte: number; lte: number };
+};
+
+type GradeStatsRow = {
+  grade: string;
+  _count: { id: number };
+  _avg: {
+    attendancePercentage: number | null;
+    classParticipation: number | null;
+    totalScore: number | null;
+  };
+};
+
+function readNumber(value: unknown, fieldName: string, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${fieldName} debe estar entre ${min} y ${max}`);
+  }
+  return parsed;
+}
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const {
-      grades,
-      studyHoursMin,
-      studyHoursMax,
-      attendanceMin,
-      attendanceMax,
-      participationMin,
-      participationMax,
-    } = body;
+    const cookieStore = await cookies();
+    const sessionUser = verifySessionToken(cookieStore.get('session')?.value);
 
-    const where: any = {};
-
-    // Filtro por calificacion (Grade)
-    if (grades && Array.isArray(grades) && grades.length > 0) {
-      where.grade = { in: grades };
+    if (!sessionUser || !['ADMIN', 'PROFESOR'].includes(sessionUser.role)) {
+      return NextResponse.json(
+        { success: false, error: 'No autorizado para consultar la analítica' },
+        { status: 401 }
+      );
     }
 
-    // Filtro por horas de estudio semanales
-    if (studyHoursMin !== undefined || studyHoursMax !== undefined) {
-      where.weeklySelfStudyHours = {
-        gte: studyHoursMin !== undefined ? Number(studyHoursMin) : 0,
-        lte: studyHoursMax !== undefined ? Number(studyHoursMax) : 100,
-      };
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { success: false, error: 'Los filtros enviados no son válidos' },
+        { status: 400 }
+      );
     }
 
-    // Filtro por porcentaje de asistencia
-    if (attendanceMin !== undefined || attendanceMax !== undefined) {
-      where.attendancePercentage = {
-        gte: attendanceMin !== undefined ? Number(attendanceMin) : 0,
-        lte: attendanceMax !== undefined ? Number(attendanceMax) : 100,
-      };
+    const rawGrades = Array.isArray((body as { grades?: unknown }).grades)
+      ? (body as { grades: unknown[] }).grades
+      : [];
+    const grades = [...new Set<string>(
+      rawGrades.filter((grade): grade is string => typeof grade === 'string')
+    )];
+
+    if (grades.length === 0 || grades.some((grade) => !ALLOWED_GRADES.has(grade))) {
+      return NextResponse.json(
+        { success: false, error: 'Seleccione al menos una calificación válida' },
+        { status: 400 }
+      );
     }
 
-    // Filtro por participación en clase
-    if (participationMin !== undefined || participationMax !== undefined) {
-      where.classParticipation = {
-        gte: participationMin !== undefined ? Number(participationMin) : 0,
-        lte: participationMax !== undefined ? Number(participationMax) : 10,
-      };
+    let studyHoursMin: number;
+    let studyHoursMax: number;
+    let attendanceMin: number;
+    let attendanceMax: number;
+    let participationMin: number;
+    let participationMax: number;
+
+    try {
+      studyHoursMin = readNumber(body.studyHoursMin, 'Las horas mínimas', 0, 50);
+      studyHoursMax = readNumber(body.studyHoursMax, 'Las horas máximas', 0, 50);
+      attendanceMin = readNumber(body.attendanceMin, 'La asistencia mínima', 0, 100);
+      attendanceMax = readNumber(body.attendanceMax, 'La asistencia máxima', 0, 100);
+      participationMin = readNumber(body.participationMin, 'La participación mínima', 1, 10);
+      participationMax = readNumber(body.participationMax, 'La participación máxima', 1, 10);
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: error instanceof Error ? error.message : 'Rangos de filtros no válidos' },
+        { status: 400 }
+      );
     }
 
-    // 1. Estadísticas agregadas generales (KPIs)
-    const [stats, passingCount] = await Promise.all([
+    if (
+      studyHoursMin > studyHoursMax ||
+      attendanceMin > attendanceMax ||
+      participationMin > participationMax
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'El valor mínimo de un filtro no puede superar al máximo' },
+        { status: 400 }
+      );
+    }
+
+    const where: StudentWhereInput = {
+      grade: { in: grades },
+      weeklySelfStudyHours: { gte: studyHoursMin, lte: studyHoursMax },
+      attendancePercentage: { gte: attendanceMin, lte: attendanceMax },
+      classParticipation: { gte: participationMin, lte: participationMax },
+    };
+
+    // Se ejecutan las consultas solo cuando el usuario pulsa "Aplicar filtros".
+    const [stats, passingCount, gradeStatsRaw] = await Promise.all([
       prisma.student.aggregate({
         where,
-        _count: {
-          id: true,
-        },
+        _count: { id: true },
         _avg: {
           weeklySelfStudyHours: true,
           attendancePercentage: true,
@@ -62,61 +120,47 @@ export async function POST(request: Request) {
       prisma.student.count({
         where: {
           ...where,
-          totalScore: { gte: 70 }, // Se asume aprobado si score >= 70
+          totalScore: { gte: 70 },
+        },
+      }),
+      prisma.student.groupBy({
+        by: ['grade'],
+        where,
+        _count: { id: true },
+        _avg: {
+          attendancePercentage: true,
+          classParticipation: true,
+          totalScore: true,
         },
       }),
     ]);
 
+    const gradeStats = gradeStatsRaw as GradeStatsRow[];
+
     const totalCount = stats._count.id;
     const passRate = totalCount > 0 ? (passingCount / totalCount) * 100 : 0;
-
-    // 2. Distribución de calificaciones (Grade Distribution)
-    const gradeDistributionRaw = await prisma.student.groupBy({
-      by: ['grade'],
-      where,
-      _count: {
-        id: true,
-      },
-    });
-
     const gradeOrder = ['A', 'B', 'C', 'D', 'F'];
-    const gradeDistribution = gradeOrder.map((g) => {
-      const match = gradeDistributionRaw.find((item) => item.grade === g);
-      const count = match ? match._count.id : 0;
-      const percentage = totalCount > 0 ? (count / totalCount) * 100 : 0;
+
+    const gradeDistribution = gradeOrder.map((grade) => {
+      const match = gradeStats.find((item) => item.grade === grade);
+      const count = match?._count.id ?? 0;
       return {
-        grade: g,
+        grade,
         count,
-        percentage: Number(percentage.toFixed(1)),
+        percentage: totalCount > 0 ? Number(((count / totalCount) * 100).toFixed(1)) : 0,
       };
     });
 
-    // 3. Promedio de asistencias y participación agrupados por nota
-    const averageMetricsByGradeRaw = await prisma.student.groupBy({
-      by: ['grade'],
-      where,
-      _avg: {
-        attendancePercentage: true,
-        classParticipation: true,
-        totalScore: true,
-      },
-    });
-
-    const averageMetricsByGrade = gradeOrder.map((g) => {
-      const match = averageMetricsByGradeRaw.find((item) => item.grade === g);
+    const averageMetricsByGrade = gradeOrder.map((grade) => {
+      const match = gradeStats.find((item) => item.grade === grade);
       return {
-        grade: g,
-        avgAttendance: match?._avg.attendancePercentage
-          ? Number(match._avg.attendancePercentage.toFixed(1))
-          : 0,
-        avgParticipation: match?._avg.classParticipation
-          ? Number(match._avg.classParticipation.toFixed(1))
-          : 0,
-        avgScore: match?._avg.totalScore ? Number(match._avg.totalScore.toFixed(1)) : 0,
+        grade,
+        avgAttendance: Number((match?._avg.attendancePercentage ?? 0).toFixed(1)),
+        avgParticipation: Number((match?._avg.classParticipation ?? 0).toFixed(1)),
+        avgScore: Number((match?._avg.totalScore ?? 0).toFixed(1)),
       };
     });
 
-    // 4. Agrupación por Rangos de Horas de Estudio para correlación con puntaje total
     const studyRanges = [
       { min: 0, max: 5, label: '0-5 hrs' },
       { min: 5, max: 10, label: '5-10 hrs' },
@@ -125,52 +169,73 @@ export async function POST(request: Request) {
       { min: 20, max: 25, label: '20-25 hrs' },
       { min: 25, max: 30, label: '25-30 hrs' },
       { min: 30, max: 35, label: '30-35 hrs' },
-      { min: 35, max: 100, label: '35+ hrs' },
+      { min: 35, max: 50, label: '35-50 hrs' },
     ];
 
     const studyHoursData = await Promise.all(
-      studyRanges.map(async (r) => {
-        const agg = await prisma.student.aggregate({
+      studyRanges.map(async (range) => {
+        const lower = Math.max(range.min, studyHoursMin);
+        const upper = Math.min(range.max, studyHoursMax);
+
+        const singlePointBelongsToRange =
+          lower === upper && (lower === range.min || (upper === 50 && range.max === 50));
+
+        if (lower > upper || (lower === upper && !singlePointBelongsToRange)) {
+          return { range: range.label, count: 0, avgScore: 0 };
+        }
+
+        const includeUpperBound = upper === studyHoursMax || upper === 50;
+        const studyRange = includeUpperBound
+          ? { gte: lower, lte: upper }
+          : { gte: lower, lt: upper };
+
+        const aggregate = await prisma.student.aggregate({
           where: {
-            ...where,
-            weeklySelfStudyHours: { gte: r.min, lt: r.max },
+            grade: where.grade,
+            attendancePercentage: where.attendancePercentage,
+            classParticipation: where.classParticipation,
+            weeklySelfStudyHours: studyRange,
           },
           _count: { id: true },
           _avg: { totalScore: true },
         });
+
         return {
-          range: r.label,
-          count: agg._count.id,
-          avgScore: agg._avg.totalScore ? Number(agg._avg.totalScore.toFixed(1)) : 0,
+          range: range.label,
+          count: aggregate._count.id,
+          avgScore: Number((aggregate._avg.totalScore ?? 0).toFixed(1)),
         };
       })
     );
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        kpis: {
-          totalStudents: totalCount,
-          avgStudyHours: stats._avg.weeklySelfStudyHours
-            ? Number(stats._avg.weeklySelfStudyHours.toFixed(1))
-            : 0,
-          avgAttendance: stats._avg.attendancePercentage
-            ? Number(stats._avg.attendancePercentage.toFixed(1))
-            : 0,
-          avgParticipation: stats._avg.classParticipation
-            ? Number(stats._avg.classParticipation.toFixed(1))
-            : 0,
-          avgScore: stats._avg.totalScore ? Number(stats._avg.totalScore.toFixed(1)) : 0,
-          passRate: Number(passRate.toFixed(1)),
-        },
-        gradeDistribution,
-        averageMetricsByGrade,
-        studyHoursData,
-      },
-    });
-  } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: 'Error al obtener datos del dashboard: ' + error.message },
+      {
+        success: true,
+        data: {
+          kpis: {
+            totalStudents: totalCount,
+            avgStudyHours: Number((stats._avg.weeklySelfStudyHours ?? 0).toFixed(1)),
+            avgAttendance: Number((stats._avg.attendancePercentage ?? 0).toFixed(1)),
+            avgParticipation: Number((stats._avg.classParticipation ?? 0).toFixed(1)),
+            avgScore: Number((stats._avg.totalScore ?? 0).toFixed(1)),
+            passRate: Number(passRate.toFixed(1)),
+          },
+          gradeDistribution,
+          averageMetricsByGrade,
+          studyHoursData,
+          analyzedAt: new Date().toISOString(),
+        },
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      }
+    );
+  } catch (error) {
+    console.error('Error al obtener datos del dashboard:', error);
+    return NextResponse.json(
+      { success: false, error: 'No se pudo completar el análisis de la muestra' },
       { status: 500 }
     );
   }

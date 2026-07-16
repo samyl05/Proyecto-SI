@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   BarChart3,
   Brain,
@@ -18,11 +18,11 @@ import {
   TrendingUp,
   Percent,
   Check,
-  ChevronRight,
   Sparkles,
   Sun,
   Moon
 } from 'lucide-react';
+import { EMAIL_PATTERN, isValidEmail, normalizeEmail } from '@/lib/validation';
 import {
   BarChart,
   Bar,
@@ -30,7 +30,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -56,11 +55,116 @@ const DARK_COLORS = {
   F: '#f87171', // Red-400
 };
 
+type UserRole = 'ADMIN' | 'PROFESOR' | 'ESTUDIANTE';
+type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'F';
+
+type SessionUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  studentId: number | null;
+  approved: boolean;
+};
+
+type GradeDistributionItem = {
+  grade: GradeLetter;
+  count: number;
+  percentage: number;
+};
+
+type DashboardData = {
+  kpis: {
+    totalStudents: number;
+    avgStudyHours: number;
+    avgAttendance: number;
+    avgParticipation: number;
+    avgScore: number;
+    passRate: number;
+  };
+  gradeDistribution: GradeDistributionItem[];
+  averageMetricsByGrade: Array<{
+    grade: GradeLetter;
+    avgAttendance: number;
+    avgParticipation: number;
+    avgScore: number;
+  }>;
+  studyHoursData: Array<{
+    range: string;
+    count: number;
+    avgScore: number;
+  }>;
+  analyzedAt?: string;
+};
+
+type PredictionResult = {
+  success: boolean;
+  predictedScore?: string;
+  predictedGrade?: GradeLetter;
+  comment?: string;
+  error?: string;
+};
+
+type PendingRequest = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  studentId: number | null;
+  createdAt: string;
+};
+
+type StudentInfo = {
+  studentId: number;
+  weeklySelfStudyHours: number;
+  attendancePercentage: number;
+  classParticipation: number;
+  totalScore: number;
+  grade: GradeLetter;
+};
+
+type DashboardFilters = {
+  grades: GradeLetter[];
+  studyHoursMin: number;
+  studyHoursMax: number;
+  attendanceMin: number;
+  attendanceMax: number;
+  participationMin: number;
+  participationMax: number;
+};
+
+const DEFAULT_DASHBOARD_FILTERS: DashboardFilters = {
+  grades: ['A', 'B', 'C', 'D', 'F'],
+  studyHoursMin: 0,
+  studyHoursMax: 50,
+  attendanceMin: 0,
+  attendanceMax: 100,
+  participationMin: 1,
+  participationMax: 10,
+};
+
+function SystemDescriptionFooter() {
+  return (
+    <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-900 py-7 px-6 text-center transition-colors duration-300">
+      <div className="max-w-4xl mx-auto space-y-2">
+        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+          Rendimiento Estudiantil Analytics — Plataforma de Business Intelligence Académico
+        </p>
+        <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          El sistema transforma datos históricos de estudiantes en indicadores, filtros y visualizaciones para apoyar la toma de decisiones docentes. También permite simular una nota proyectada a partir de las horas de estudio, la asistencia y la participación en clase.
+        </p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">
+          © 2026 Rendimiento Estudiantil Analytics. Aplicación Next.js preparada para Vercel y PostgreSQL en Neon.
+        </p>
+      </div>
+    </footer>
+  );
+}
 
 
 export default function Home() {
   // Estado de Autenticación
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
 
@@ -81,35 +185,38 @@ export default function Home() {
   const [regSuccess, setRegSuccess] = useState(false);
 
   // Estado del Dashboard
-  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState('');
+  const dashboardAbortRef = useRef<AbortController | null>(null);
+  const dashboardRequestIdRef = useRef(0);
 
-  // Filtros del Dashboard
-  const [filterGrades, setFilterGrades] = useState<string[]>(['A', 'B', 'C', 'D', 'F']);
-  const [filterStudyMin, setFilterStudyMin] = useState(0);
-  const [filterStudyMax, setFilterStudyMax] = useState(50);
-  const [filterAttendanceMin, setFilterAttendanceMin] = useState(0);
-  const [filterAttendanceMax, setFilterAttendanceMax] = useState(100);
-  const [filterParticipationMin, setFilterParticipationMin] = useState(1);
-  const [filterParticipationMax, setFilterParticipationMax] = useState(10);
+  // Filtros editables. La consulta solo se ejecuta al pulsar "Aplicar filtros".
+  const [filterGrades, setFilterGrades] = useState<GradeLetter[]>(DEFAULT_DASHBOARD_FILTERS.grades);
+  const [filterStudyMin, setFilterStudyMin] = useState(DEFAULT_DASHBOARD_FILTERS.studyHoursMin);
+  const [filterStudyMax, setFilterStudyMax] = useState(DEFAULT_DASHBOARD_FILTERS.studyHoursMax);
+  const [filterAttendanceMin, setFilterAttendanceMin] = useState(DEFAULT_DASHBOARD_FILTERS.attendanceMin);
+  const [filterAttendanceMax, setFilterAttendanceMax] = useState(DEFAULT_DASHBOARD_FILTERS.attendanceMax);
+  const [filterParticipationMin, setFilterParticipationMin] = useState(DEFAULT_DASHBOARD_FILTERS.participationMin);
+  const [filterParticipationMax, setFilterParticipationMax] = useState(DEFAULT_DASHBOARD_FILTERS.participationMax);
+  const [filterValidationError, setFilterValidationError] = useState('');
 
   // Simulador de Proyección Individual
   const [simHours, setSimHours] = useState('15');
   const [simAttendance, setSimAttendance] = useState('85');
   const [simParticipation, setSimParticipation] = useState('6');
-  const [simResult, setSimResult] = useState<any>(null);
+  const [simResult, setSimResult] = useState<PredictionResult | null>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
 
   // Estado de Tab para la navegación (Profesor/Admin)
   const [activeTab, setActiveTab] = useState<'analysis' | 'requests'>('analysis');
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState('');
 
   // Estado para Estudiantes
-  const [studentInfo, setStudentInfo] = useState<any>(null);
+  const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
   const [studentInfoLoading, setStudentInfoLoading] = useState(false);
   const [studentInfoError, setStudentInfoError] = useState('');
 
@@ -133,7 +240,7 @@ export default function Home() {
       } else {
         setRequestsError(data.error || 'Error al obtener solicitudes');
       }
-    } catch (err) {
+    } catch {
       setRequestsError('Error de red al obtener solicitudes');
     } finally {
       setRequestsLoading(false);
@@ -153,7 +260,7 @@ export default function Home() {
       } else {
         alert(data.error || 'Error al procesar la solicitud');
       }
-    } catch (err) {
+    } catch {
       alert('Error de red al procesar la solicitud');
     }
   };
@@ -185,7 +292,7 @@ export default function Home() {
       } else {
         setStudentInfoError(data.error || 'Error al obtener información de estudiante');
       }
-    } catch (err) {
+    } catch {
       setStudentInfoError('Error de red al obtener información de estudiante');
     } finally {
       setStudentInfoLoading(false);
@@ -194,12 +301,14 @@ export default function Home() {
 
   useEffect(() => {
     if (user && user.role === 'ADMIN' && activeTab === 'requests') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchRequests();
     }
   }, [user, activeTab]);
 
   useEffect(() => {
     if (user && user.role === 'ESTUDIANTE') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchStudentInfo();
     }
   }, [user]);
@@ -212,6 +321,8 @@ export default function Home() {
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     const initialTheme = savedTheme || 'dark';
+    // El tema se recupera del almacenamiento del navegador después de hidratar la página.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(initialTheme);
     if (initialTheme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -231,41 +342,6 @@ export default function Home() {
     }
   };
 
-  // Verificar sesión al montar
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  // Recargar datos cuando cambian los filtros (con debounce simulado al soltar el ratón o directamente al cambiar)
-  useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    }
-  }, [
-    user,
-    filterGrades,
-    filterStudyMin,
-    filterStudyMax,
-    filterAttendanceMin,
-    filterAttendanceMax,
-    filterParticipationMin,
-    filterParticipationMax,
-  ]);
-
-  const checkSession = async () => {
-    try {
-      const res = await fetch('/api/auth/me');
-      const data = await res.json();
-      if (data.loggedIn) {
-        setUser(data.user);
-      }
-    } catch (err) {
-      console.error('Error verificando sesión:', err);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -282,7 +358,7 @@ export default function Home() {
       } else {
         setLoginError(data.error || 'Credenciales incorrectas');
       }
-    } catch (err) {
+    } catch {
       setLoginError('Error de red al intentar iniciar sesión');
     } finally {
       setLoginSubmitting(false);
@@ -292,14 +368,40 @@ export default function Home() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
+
+    const normalizedName = regName.trim();
+    const normalizedEmail = normalizeEmail(regEmail);
+
+    if (normalizedName.length < 3 || normalizedName.length > 100) {
+      setRegError('El nombre debe contener entre 3 y 100 caracteres');
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setRegError('Ingrese un correo electrónico válido, por ejemplo usuario@dominio.com');
+      return;
+    }
+
+    if (regPassword.length < 6 || regPassword.length > 100) {
+      setRegError('La contraseña debe contener entre 6 y 100 caracteres');
+      return;
+    }
+
+    if (regRole === 'ESTUDIANTE' && (!/^\d+$/.test(regStudentId) || Number(regStudentId) <= 0)) {
+      setRegError('El ID del estudiante debe ser un número entero positivo');
+      return;
+    }
+
+    setRegName(normalizedName);
+    setRegEmail(normalizedEmail);
     setRegSubmitting(true);
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: regName,
-          email: regEmail,
+          name: normalizedName,
+          email: normalizedEmail,
           password: regPassword,
           role: regRole,
           studentId: regRole === 'ESTUDIANTE' ? regStudentId : undefined,
@@ -308,7 +410,7 @@ export default function Home() {
       const data = await res.json();
       if (res.ok && data.success) {
         setRegSuccess(true);
-        setLoginEmail(regEmail);
+        setLoginEmail(normalizedEmail);
         setLoginPassword(regPassword);
         // Esperar 4s para que lean el aviso de aprobación y cambiar a pestaña de login
         setTimeout(() => {
@@ -323,7 +425,7 @@ export default function Home() {
       } else {
         setRegError(data.error || 'Error al registrar el usuario');
       }
-    } catch (err) {
+    } catch {
       setRegError('Error de red al intentar registrarse');
     } finally {
       setRegSubmitting(false);
@@ -335,48 +437,136 @@ export default function Home() {
       await fetch('/api/auth/logout', { method: 'POST' });
       setUser(null);
       setDashboardData(null);
+      dashboardAbortRef.current?.abort();
       // Limpiar filtros
-      setFilterGrades(['A', 'B', 'C', 'D', 'F']);
-      setFilterStudyMin(0);
-      setFilterStudyMax(50);
-      setFilterAttendanceMin(0);
-      setFilterAttendanceMax(100);
-      setFilterParticipationMin(1);
-      setFilterParticipationMax(10);
-    } catch (err) {
-      console.error('Error cerrando sesión:', err);
+      setFilterGrades(DEFAULT_DASHBOARD_FILTERS.grades);
+      setFilterStudyMin(DEFAULT_DASHBOARD_FILTERS.studyHoursMin);
+      setFilterStudyMax(DEFAULT_DASHBOARD_FILTERS.studyHoursMax);
+      setFilterAttendanceMin(DEFAULT_DASHBOARD_FILTERS.attendanceMin);
+      setFilterAttendanceMax(DEFAULT_DASHBOARD_FILTERS.attendanceMax);
+      setFilterParticipationMin(DEFAULT_DASHBOARD_FILTERS.participationMin);
+      setFilterParticipationMax(DEFAULT_DASHBOARD_FILTERS.participationMax);
+      setFilterValidationError('');
+    } catch (error) {
+      console.error('Error cerrando sesión:', error);
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async (filters: DashboardFilters) => {
+    dashboardAbortRef.current?.abort();
+    const controller = new AbortController();
+    dashboardAbortRef.current = controller;
+    const requestId = ++dashboardRequestIdRef.current;
+
     setDashboardLoading(true);
     setDashboardError('');
     try {
       const res = await fetch('/api/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grades: filterGrades,
-          studyHoursMin: filterStudyMin,
-          studyHoursMax: filterStudyMax,
-          attendanceMin: filterAttendanceMin,
-          attendanceMax: filterAttendanceMax,
-          participationMin: filterParticipationMin,
-          participationMax: filterParticipationMax,
-        }),
+        cache: 'no-store',
+        signal: controller.signal,
+        body: JSON.stringify(filters),
       });
       const data = await res.json();
+
+      // Impide que una respuesta anterior sobrescriba la muestra más reciente.
+      if (requestId !== dashboardRequestIdRef.current) return;
+
       if (res.ok && data.success) {
         setDashboardData(data.data);
       } else {
         setDashboardError(data.error || 'Error al obtener datos');
       }
     } catch (err) {
-      setDashboardError('Error de red al conectar con el servidor de BI');
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (requestId === dashboardRequestIdRef.current) {
+        setDashboardError('Error de red al conectar con el servidor de BI');
+      }
     } finally {
-      setDashboardLoading(false);
+      if (requestId === dashboardRequestIdRef.current) {
+        setDashboardLoading(false);
+      }
     }
+  }, []);
+
+  const getCurrentDashboardFilters = (): DashboardFilters => ({
+    grades: filterGrades,
+    studyHoursMin: filterStudyMin,
+    studyHoursMax: filterStudyMax,
+    attendanceMin: filterAttendanceMin,
+    attendanceMax: filterAttendanceMax,
+    participationMin: filterParticipationMin,
+    participationMax: filterParticipationMax,
+  });
+
+  const handleApplyFilters = () => {
+    if (filterGrades.length === 0) {
+      setFilterValidationError('Seleccione al menos una calificación antes de analizar.');
+      return;
+    }
+
+    if (
+      filterStudyMin > filterStudyMax ||
+      filterAttendanceMin > filterAttendanceMax ||
+      filterParticipationMin > filterParticipationMax
+    ) {
+      setFilterValidationError('El valor mínimo no puede ser mayor que el máximo.');
+      return;
+    }
+
+    setFilterValidationError('');
+    fetchDashboardData(getCurrentDashboardFilters());
   };
+
+  const handleResetFilters = () => {
+    setFilterGrades(DEFAULT_DASHBOARD_FILTERS.grades);
+    setFilterStudyMin(DEFAULT_DASHBOARD_FILTERS.studyHoursMin);
+    setFilterStudyMax(DEFAULT_DASHBOARD_FILTERS.studyHoursMax);
+    setFilterAttendanceMin(DEFAULT_DASHBOARD_FILTERS.attendanceMin);
+    setFilterAttendanceMax(DEFAULT_DASHBOARD_FILTERS.attendanceMax);
+    setFilterParticipationMin(DEFAULT_DASHBOARD_FILTERS.participationMin);
+    setFilterParticipationMax(DEFAULT_DASHBOARD_FILTERS.participationMax);
+    setFilterValidationError('');
+    fetchDashboardData(DEFAULT_DASHBOARD_FILTERS);
+  };
+
+  // Verificar la sesión una sola vez al montar la aplicación.
+  useEffect(() => {
+    let active = true;
+
+    const loadSession = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (active && data.loggedIn) {
+          setUser(data.user as SessionUser);
+        }
+      } catch (error) {
+        console.error('Error verificando sesión:', error);
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    };
+
+    loadSession();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const currentUserId = user?.id;
+  const currentUserRole = user?.role;
+
+  // Carga inicial. Las perillas no generan consultas mientras se arrastran.
+  useEffect(() => {
+    if (currentUserId && currentUserRole !== 'ESTUDIANTE') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchDashboardData(DEFAULT_DASHBOARD_FILTERS);
+    }
+
+    return () => dashboardAbortRef.current?.abort();
+  }, [currentUserId, currentUserRole, fetchDashboardData]);
 
   const handlePredict = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,7 +590,7 @@ export default function Home() {
     }
   };
 
-  const toggleGradeFilter = (grade: string) => {
+  const toggleGradeFilter = (grade: GradeLetter) => {
     if (filterGrades.includes(grade)) {
       setFilterGrades(filterGrades.filter((g) => g !== grade));
     } else {
@@ -408,8 +598,15 @@ export default function Home() {
     }
   };
 
-  const selectAllGrades = () => setFilterGrades(['A', 'B', 'C', 'D', 'F']);
+  const selectAllGrades = () => setFilterGrades(DEFAULT_DASHBOARD_FILTERS.grades);
   const clearGrades = () => setFilterGrades([]);
+
+  const changeStudyMin = (value: number) => setFilterStudyMin(Math.min(value, filterStudyMax));
+  const changeStudyMax = (value: number) => setFilterStudyMax(Math.max(value, filterStudyMin));
+  const changeAttendanceMin = (value: number) => setFilterAttendanceMin(Math.min(value, filterAttendanceMax));
+  const changeAttendanceMax = (value: number) => setFilterAttendanceMax(Math.max(value, filterAttendanceMin));
+  const changeParticipationMin = (value: number) => setFilterParticipationMin(Math.min(value, filterParticipationMax));
+  const changeParticipationMax = (value: number) => setFilterParticipationMax(Math.max(value, filterParticipationMin));
 
   if (authLoading) {
     return (
@@ -453,7 +650,7 @@ export default function Home() {
               <GraduationCap className="w-8 h-8" />
             </div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex justify-center items-center gap-2">
-              Redimiento Estudiantil <span className="text-indigo-600 dark:text-indigo-400 font-medium text-lg px-2 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/10 rounded-md border border-indigo-100 dark:border-indigo-500/20">BI</span>
+              Rendimiento Estudiantil <span className="text-indigo-600 dark:text-indigo-400 font-medium text-lg px-2 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/10 rounded-md border border-indigo-100 dark:border-indigo-500/20">BI</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
               Plataforma de soporte analítico y predictivo de rendimiento académico
@@ -539,9 +736,6 @@ export default function Home() {
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 italic mt-1 block">
-                    * Nota: Las contraseñas se almacenan en texto plano en la BD.
-                  </p>
                 </div>
 
                 <button
@@ -582,7 +776,7 @@ export default function Home() {
                     <input
                       type="text"
                       required
-                      placeholder="Samantha Lozada"
+                      placeholder="Ej. Dra. Samantha Lozada"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
@@ -601,12 +795,21 @@ export default function Home() {
                     <input
                       type="email"
                       required
-                      placeholder="samantha@gmail.com"
+                      maxLength={254}
+                      pattern={EMAIL_PATTERN}
+                      title="Ingrese un correo válido, por ejemplo usuario@dominio.com"
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="usuario@dominio.com"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
+                      onBlur={() => setRegEmail(normalizeEmail(regEmail))}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                    Use un formato como nombre@dominio.com. No se permiten espacios ni dominios incompletos.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -651,6 +854,9 @@ export default function Home() {
                       <input
                         type="number"
                         required
+                        min={1}
+                        step={1}
+                        inputMode="numeric"
                         placeholder="Ej. 65"
                         value={regStudentId}
                         onChange={(e) => setRegStudentId(e.target.value)}
@@ -674,14 +880,17 @@ export default function Home() {
                     <input
                       type="password"
                       required
-                      placeholder="Contraseña"
+                      minLength={6}
+                      maxLength={100}
+                      autoComplete="new-password"
+                      placeholder="Mínimo 6 caracteres"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 italic mt-1 block">
-                    * Nota: La contraseña será almacenada sin encriptar, tal como se solicitó.
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-1 block">
+                    Use al menos 6 caracteres. Evite utilizar la misma contraseña de su correo.
                   </p>
                 </div>
 
@@ -696,6 +905,9 @@ export default function Home() {
             )}
           </div>
         </div>
+        <p className="relative z-10 mt-5 max-w-2xl text-center text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+          Plataforma académica de Business Intelligence para analizar rendimiento, visualizar indicadores y realizar simulaciones de nota con datos de estudio, asistencia y participación.
+        </p>
       </div>
     );
   }
@@ -707,7 +919,7 @@ export default function Home() {
         {/* Header para Estudiantes */}
         <header className="bg-white/80 dark:bg-slate-900/60 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 sticky top-0 z-40 px-6 py-4 flex items-center justify-between gap-4 transition-colors duration-300">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-tr from-emerald-500 to-teal-505 text-white rounded-xl shadow-lg shadow-emerald-500/10">
+            <div className="p-2.5 bg-gradient-to-tr from-emerald-500 to-teal-500 text-white rounded-xl shadow-lg shadow-emerald-500/10">
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
@@ -990,6 +1202,7 @@ export default function Home() {
             </div>
           )}
         </main>
+        <SystemDescriptionFooter />
       </div>
     );
   }
@@ -1005,7 +1218,7 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 uppercase">
-              Redimiento Estudiantil <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 font-bold rounded border border-indigo-100 dark:border-indigo-500/20">BI</span>
+              Rendimiento Estudiantil <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400 font-bold rounded border border-indigo-100 dark:border-indigo-500/20">BI</span>
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               Plataforma de soporte analítico de datos educativos
@@ -1224,7 +1437,7 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
-              {['A', 'B', 'C', 'D', 'F'].map((g) => {
+              {(['A', 'B', 'C', 'D', 'F'] as GradeLetter[]).map((g) => {
                 const active = filterGrades.includes(g);
                 return (
                   <button
@@ -1261,7 +1474,7 @@ export default function Home() {
                   min="0"
                   max="50"
                   value={filterStudyMin}
-                  onChange={(e) => setFilterStudyMin(Number(e.target.value))}
+                  onChange={(e) => changeStudyMin(Number(e.target.value))}
                   className="w-full accent-indigo-600 dark:accent-indigo-500 h-1.5 bg-slate-100 dark:bg-slate-950 border-none rounded-lg"
                 />
               </div>
@@ -1272,7 +1485,7 @@ export default function Home() {
                   min="0"
                   max="50"
                   value={filterStudyMax}
-                  onChange={(e) => setFilterStudyMax(Number(e.target.value))}
+                  onChange={(e) => changeStudyMax(Number(e.target.value))}
                   className="w-full accent-indigo-600 dark:accent-indigo-500 h-1.5 bg-slate-100 dark:bg-slate-950 border-none rounded-lg"
                 />
               </div>
@@ -1297,7 +1510,7 @@ export default function Home() {
                   min="0"
                   max="100"
                   value={filterAttendanceMin}
-                  onChange={(e) => setFilterAttendanceMin(Number(e.target.value))}
+                  onChange={(e) => changeAttendanceMin(Number(e.target.value))}
                   className="w-full accent-emerald-600 dark:accent-emerald-500 h-1.5 bg-slate-100 dark:bg-slate-950 border-none rounded-lg"
                 />
               </div>
@@ -1308,7 +1521,7 @@ export default function Home() {
                   min="0"
                   max="100"
                   value={filterAttendanceMax}
-                  onChange={(e) => setFilterAttendanceMax(Number(e.target.value))}
+                  onChange={(e) => changeAttendanceMax(Number(e.target.value))}
                   className="w-full accent-emerald-600 dark:accent-emerald-500 h-1.5 bg-slate-100 dark:bg-slate-950 border-none rounded-lg"
                 />
               </div>
@@ -1333,7 +1546,7 @@ export default function Home() {
                   min="1"
                   max="10"
                   value={filterParticipationMin}
-                  onChange={(e) => setFilterParticipationMin(Number(e.target.value))}
+                  onChange={(e) => changeParticipationMin(Number(e.target.value))}
                   className="w-full accent-purple-600 dark:accent-purple-500 h-1.5 bg-slate-100 dark:bg-slate-950 border-none rounded-lg"
                 />
               </div>
@@ -1344,17 +1557,41 @@ export default function Home() {
                   min="1"
                   max="10"
                   value={filterParticipationMax}
-                  onChange={(e) => setFilterParticipationMax(Number(e.target.value))}
+                  onChange={(e) => changeParticipationMax(Number(e.target.value))}
                   className="w-full accent-purple-600 dark:accent-purple-500 h-1.5 bg-slate-100 dark:bg-slate-950 border-none rounded-lg"
                 />
               </div>
             </div>
           </div>
 
-          {/* Indicación de Auto-Aplicación */}
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1.5 italic justify-center text-center">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-            Los filtros se aplican automáticamente
+          {/* Aplicación controlada de filtros */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+            {filterValidationError && (
+              <div className="text-[10px] text-rose-600 dark:text-rose-400 flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{filterValidationError}</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleApplyFilters}
+              disabled={dashboardLoading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl transition text-xs shadow-md shadow-indigo-600/10 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {dashboardLoading ? 'Analizando muestra...' : 'Aplicar filtros y analizar'}
+            </button>
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              disabled={dashboardLoading}
+              className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-60 text-slate-700 dark:text-slate-200 font-bold py-2.5 rounded-xl transition text-xs cursor-pointer"
+            >
+              Restablecer filtros
+            </button>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+              Mueva las perillas libremente y aplique los cambios una sola vez. La muestra permanecerá estable hasta el siguiente análisis.
+            </p>
           </div>
         </aside>
 
@@ -1576,7 +1813,7 @@ export default function Home() {
                           formatter={(value) => [`${Number(value).toLocaleString()} alumnos`, 'Cantidad']}
                         />
                         <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                          {dashboardData.gradeDistribution.map((entry: any, index: number) => (
+                          {dashboardData.gradeDistribution.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[entry.grade as keyof typeof COLORS] || '#7627c4'} />
                           ))}
                         </Bar>
@@ -1602,7 +1839,7 @@ export default function Home() {
                           dataKey="count"
                           nameKey="grade"
                         >
-                          {dashboardData.gradeDistribution.map((entry: any, index: number) => (
+                          {dashboardData.gradeDistribution.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[entry.grade as keyof typeof COLORS] || '#7627c4'} />
                           ))}
                         </Pie>
@@ -1624,7 +1861,7 @@ export default function Home() {
                   </div>
                   {/* Leyenda Personalizada */}
                   <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-800/80 mt-1">
-                    {['A', 'B', 'C', 'D', 'F'].map((g) => (
+                    {(['A', 'B', 'C', 'D', 'F'] as GradeLetter[]).map((g) => (
                       <div key={g} className="flex items-center gap-1">
                         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[g as keyof typeof COLORS] }} />
                         <span>{g}</span>
@@ -1707,10 +1944,7 @@ export default function Home() {
     )}
   </div>
 
-      {/* Footer Fino */}
-      <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-900 py-4 px-6 text-center text-xs text-slate-500 dark:text-slate-500 font-medium transition-colors duration-300">
-        © 2026 Redimiento Estudiantil Analytics BI Platform. Desarrollado para hosting en Vercel.
-      </footer>
+      <SystemDescriptionFooter />
     </div>
   );
 }

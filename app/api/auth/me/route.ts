@@ -1,24 +1,23 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { verifySessionToken } from '@/lib/session';
+
+export const runtime = 'nodejs';
 
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    const session = cookieStore.get('session')?.value;
+    const user = verifySessionToken(cookieStore.get('session')?.value);
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ loggedIn: false }, { status: 200 });
     }
 
-    try {
-      const decoded = JSON.parse(Buffer.from(session, 'base64').toString('utf-8'));
-      return NextResponse.json({ loggedIn: true, user: decoded });
-    } catch (e) {
-      return NextResponse.json({ loggedIn: false }, { status: 200 });
-    }
-  } catch (error: any) {
+    return NextResponse.json({ loggedIn: true, user });
+  } catch (error) {
+    console.error('Error al verificar sesión:', error);
     return NextResponse.json(
-      { loggedIn: false, error: 'Error al verificar sesión: ' + error.message },
+      { loggedIn: false, error: 'No se pudo verificar la sesión' },
       { status: 500 }
     );
   }

@@ -6,9 +6,10 @@ export async function POST() {
     const cookieStore = await cookies();
     cookieStore.delete('session');
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error desconocido';
     return NextResponse.json(
-      { success: false, error: 'Error al cerrar sesión: ' + error.message },
+      { success: false, error: 'Error al cerrar sesión: ' + message },
       { status: 500 }
     );
   }
