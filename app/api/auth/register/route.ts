@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isValidEmail, normalizeEmail } from '@/lib/validation';
+import { isAllowedRegistrationEmail, normalizeEmail } from '@/lib/validation';
 import bcrypt from 'bcryptjs';
 
 const ALLOWED_ROLES = new Set(['PROFESOR', 'ESTUDIANTE']);
@@ -28,9 +28,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isValidEmail(email)) {
+    if (!isAllowedRegistrationEmail(email)) {
       return NextResponse.json(
-        { success: false, error: 'Ingrese un correo electrónico válido, por ejemplo usuario@dominio.com' },
+        {
+          success: false,
+          error: 'Solo se permiten correos de Gmail, Outlook o Hotmail',
+        },
         { status: 400 }
       );
     }

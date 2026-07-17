@@ -5,6 +5,8 @@ Aplicación web académica desarrollada con **Next.js 16**, **React 19**, **Pris
 ## Cambios incluidos en esta versión
 
 - Validación de correo en el navegador y en el servidor.
+- Registro limitado a cuentas `@gmail.com`, `@outlook.com` y `@hotmail.com`.
+- Nueva pestaña administrativa para consultar y eliminar cuentas registradas.
 - Normalización de correos a minúsculas para evitar duplicados.
 - Validación de nombre, contraseña, rol e ID de estudiante.
 - Contraseñas nuevas almacenadas con hash `bcrypt`.
@@ -120,6 +122,15 @@ npm run students:import
 ```
 
 Antes de importar, verifique que `DATABASE_URL` apunte a la base correcta.
+
+## Administración de usuarios
+
+Al iniciar sesión con el rol `ADMIN`, el panel incluye estas pestañas:
+
+- **Solicitudes de Registro:** permite aprobar o rechazar cuentas pendientes.
+- **Administrar Cuentas:** muestra profesores y estudiantes registrados, su estado de aprobación y la opción para eliminarlos.
+
+La eliminación solicita confirmación y se valida nuevamente en el servidor. Las cuentas con rol `ADMIN` no se muestran ni pueden eliminarse desde este módulo.
 
 ## Despliegue o actualización en Vercel
 

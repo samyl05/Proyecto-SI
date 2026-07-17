@@ -20,9 +20,14 @@ import {
   Check,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Trash2
 } from 'lucide-react';
-import { EMAIL_PATTERN, isValidEmail, normalizeEmail } from '@/lib/validation';
+import {
+  EMAIL_PATTERN,
+  isAllowedRegistrationEmail,
+  normalizeEmail,
+} from '@/lib/validation';
 import {
   BarChart,
   Bar,
@@ -111,6 +116,16 @@ type PendingRequest = {
   email: string;
   role: UserRole;
   studentId: number | null;
+  createdAt: string;
+};
+
+type RegisteredAccount = {
+  id: string;
+  name: string;
+  email: string;
+  role: Exclude<UserRole, 'ADMIN'>;
+  studentId: number | null;
+  approved: boolean;
   createdAt: string;
 };
 
@@ -210,10 +225,16 @@ export default function Home() {
   const [showSimulator, setShowSimulator] = useState(false);
 
   // Estado de Tab para la navegación (Profesor/Admin)
-  const [activeTab, setActiveTab] = useState<'analysis' | 'requests'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'requests' | 'accounts'>('analysis');
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState('');
+
+  // Administración de cuentas registradas
+  const [registeredAccounts, setRegisteredAccounts] = useState<RegisteredAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [accountsError, setAccountsError] = useState('');
+  const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
 
   // Estado para Estudiantes
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
@@ -265,6 +286,56 @@ export default function Home() {
     }
   };
 
+  const fetchAccounts = async () => {
+    setAccountsLoading(true);
+    setAccountsError('');
+    try {
+      const res = await fetch('/api/admin/accounts');
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setRegisteredAccounts(data.accounts);
+      } else {
+        setAccountsError(data.error || 'Error al obtener las cuentas registradas');
+      }
+    } catch {
+      setAccountsError('Error de red al obtener las cuentas registradas');
+    } finally {
+      setAccountsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async (account: RegisteredAccount) => {
+    const confirmed = window.confirm(
+      `¿Está seguro de eliminar la cuenta de ${account.name} (${account.email})? Esta acción no se puede deshacer.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingAccountId(account.id);
+    setAccountsError('');
+
+    try {
+      const res = await fetch('/api/admin/accounts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: account.id }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setRegisteredAccounts((current) => current.filter((item) => item.id !== account.id));
+        setPendingRequests((current) => current.filter((item) => item.id !== account.id));
+      } else {
+        setAccountsError(data.error || 'Error al eliminar la cuenta');
+      }
+    } catch {
+      setAccountsError('Error de red al eliminar la cuenta');
+    } finally {
+      setDeletingAccountId(null);
+    }
+  };
+
   const fetchStudentInfo = async () => {
     setStudentInfoLoading(true);
     setStudentInfoError('');
@@ -303,6 +374,13 @@ export default function Home() {
     if (user && user.role === 'ADMIN' && activeTab === 'requests') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchRequests();
+    }
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    if (user && user.role === 'ADMIN' && activeTab === 'accounts') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchAccounts();
     }
   }, [user, activeTab]);
 
@@ -377,8 +455,8 @@ export default function Home() {
       return;
     }
 
-    if (!isValidEmail(normalizedEmail)) {
-      setRegError('Ingrese un correo electrónico válido, por ejemplo usuario@dominio.com');
+    if (!isAllowedRegistrationEmail(normalizedEmail)) {
+      setRegError('Solo se permiten correos con dominio @gmail.com, @outlook.com o @hotmail.com');
       return;
     }
 
@@ -797,18 +875,18 @@ export default function Home() {
                       required
                       maxLength={254}
                       pattern={EMAIL_PATTERN}
-                      title="Ingrese un correo válido, por ejemplo usuario@dominio.com"
+                      title="Use un correo terminado en @gmail.com, @outlook.com o @hotmail.com"
                       autoComplete="email"
                       inputMode="email"
-                      placeholder="usuario@dominio.com"
+                      placeholder="usuario@gmail.com"
                       value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
+                      onChange={(e) => setRegEmail(e.target.value.toLowerCase())}
                       onBlur={() => setRegEmail(normalizeEmail(regEmail))}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-colors duration-200"
                     />
                   </div>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                    Use un formato como nombre@dominio.com. No se permiten espacios ni dominios incompletos.
+                    Dominios permitidos: @gmail.com, @outlook.com y @hotmail.com.
                   </p>
                 </div>
 
@@ -1275,7 +1353,7 @@ export default function Home() {
       <div className="flex-1 p-6">
         {/* Tabs de Admin */}
         {user.role === 'ADMIN' && (
-          <div className="flex gap-3 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
+          <div className="flex flex-wrap gap-3 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
             <button
               onClick={() => setActiveTab('analysis')}
               className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
@@ -1303,6 +1381,20 @@ export default function Home() {
                   {pendingRequests.length}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('accounts');
+                fetchAccounts();
+              }}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-2 ${
+                activeTab === 'accounts'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Administrar Cuentas
             </button>
           </div>
         )}
@@ -1393,6 +1485,112 @@ export default function Home() {
                             className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition active:scale-95 cursor-pointer"
                           >
                             Rechazar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'accounts' && user.role === 'ADMIN' ? (
+          <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Users className="w-5 h-5 text-indigo-500" />
+                  Administración de Cuentas
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Consulta las cuentas de profesores y estudiantes registradas y elimina las que ya no deban acceder al sistema.
+                </p>
+              </div>
+              <button
+                onClick={fetchAccounts}
+                disabled={accountsLoading}
+                className="px-3.5 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                {accountsLoading ? 'Actualizando...' : 'Refrescar'}
+              </button>
+            </div>
+
+            {accountsError && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{accountsError}</span>
+              </div>
+            )}
+
+            {accountsLoading && (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
+                <div className="w-8 h-8 border-4 border-indigo-200 dark:border-indigo-500/20 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin mb-2.5"></div>
+                <span className="text-xs uppercase tracking-wider font-semibold">Cargando cuentas...</span>
+              </div>
+            )}
+
+            {!accountsLoading && !accountsError && registeredAccounts.length === 0 && (
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
+                <Users className="w-8 h-8 text-indigo-500 mx-auto mb-3" />
+                No existen cuentas de profesores o estudiantes registradas.
+              </div>
+            )}
+
+            {!accountsLoading && registeredAccounts.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black">
+                      <th className="py-3 px-4">Usuario</th>
+                      <th className="py-3 px-4">Correo</th>
+                      <th className="py-3 px-4">Rol</th>
+                      <th className="py-3 px-4">ID Estudiante</th>
+                      <th className="py-3 px-4">Estado</th>
+                      <th className="py-3 px-4">Registro</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs font-medium">
+                    {registeredAccounts.map((account) => (
+                      <tr key={account.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition duration-155">
+                        <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">
+                          {account.name}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                          {account.email}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            account.role === 'PROFESOR'
+                              ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {account.role}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-slate-700 dark:text-slate-300 font-mono">
+                          {account.studentId ?? '-'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            account.approved
+                              ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                          }`}>
+                            {account.approved ? 'APROBADA' : 'PENDIENTE'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-400 dark:text-slate-500">
+                          {new Date(account.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={() => handleDeleteAccount(account)}
+                            disabled={deletingAccountId === account.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            {deletingAccountId === account.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         </td>
                       </tr>

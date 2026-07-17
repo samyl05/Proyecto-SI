@@ -1,4 +1,6 @@
-export const EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$";
+export const EMAIL_PATTERN = "^[^\\s@]+@(?:gmail\\.com|outlook\\.com|hotmail\\.com)$";
+
+export const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com'] as const;
 
 /**
  * Normaliza un correo para evitar duplicados por mayúsculas o espacios.
@@ -31,4 +33,17 @@ export function isValidEmail(value: unknown): boolean {
 
   const topLevelDomain = domainLabels.at(-1) ?? '';
   return /^[a-z]{2,63}$/i.test(topLevelDomain);
+}
+
+/**
+ * Valida los dominios admitidos para el registro público de usuarios.
+ * Los administradores existentes pueden seguir iniciando sesión con su correo actual.
+ */
+export function isAllowedRegistrationEmail(value: unknown): boolean {
+  const email = normalizeEmail(value);
+
+  if (!isValidEmail(email)) return false;
+
+  const domain = email.split('@')[1];
+  return ALLOWED_EMAIL_DOMAINS.some((allowedDomain) => allowedDomain === domain);
 }
