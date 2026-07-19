@@ -12,6 +12,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validar el formato y dominio del correo electrónico
+    const emailRegex = /^[^@]+@(gmail\.com|hotmail\.com|outlook\.com)$/i;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'El correo debe tener un formato válido y usar uno de los dominios permitidos: @gmail.com, @hotmail.com o @outlook.com' },
+        { status: 400 }
+      );
+    }
+
     if (role !== 'PROFESOR' && role !== 'ESTUDIANTE') {
       return NextResponse.json(
         { success: false, error: 'Rol no válido' },
@@ -31,6 +40,21 @@ export async function POST(request: Request) {
       if (isNaN(parsedStudentId)) {
         return NextResponse.json(
           { success: false, error: 'El ID del estudiante debe ser un número válido' },
+          { status: 400 }
+        );
+      }
+
+      // Validar si el ID de estudiante es mayor que el ID máximo registrado en la base de datos
+      const maxStudentIdAggregate = await prisma.student.aggregate({
+        _max: {
+          studentId: true,
+        },
+      });
+      const maxStudentId = maxStudentIdAggregate._max.studentId || 1000000;
+
+      if (parsedStudentId > maxStudentId) {
+        return NextResponse.json(
+          { success: false, error: `El ID del estudiante (${parsedStudentId}) no puede ser mayor que el ID máximo en la base de datos (${maxStudentId})` },
           { status: 400 }
         );
       }

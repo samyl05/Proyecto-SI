@@ -103,10 +103,16 @@ export default function Home() {
   const [showSimulator, setShowSimulator] = useState(false);
 
   // Estado de Tab para la navegación (Profesor/Admin)
-  const [activeTab, setActiveTab] = useState<'analysis' | 'requests'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'requests' | 'accounts'>('analysis');
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState('');
+
+  // Estado para la pestaña de Administrar Cuentas
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [accountsError, setAccountsError] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<{ [userId: string]: boolean }>({});
 
   // Estado para Estudiantes
   const [studentInfo, setStudentInfo] = useState<any>(null);
@@ -158,6 +164,62 @@ export default function Home() {
     }
   };
 
+  const fetchAccounts = async () => {
+    setAccountsLoading(true);
+    setAccountsError('');
+    try {
+      const res = await fetch('/api/admin/users');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAccounts(data.users);
+      } else {
+        setAccountsError(data.error || 'Error al obtener las cuentas');
+      }
+    } catch (err) {
+      setAccountsError('Error de red al obtener las cuentas');
+    } finally {
+      setAccountsLoading(false);
+    }
+  };
+
+  const handleViewPassword = (userId: string) => {
+    if (visiblePasswords[userId]) {
+      setVisiblePasswords({ ...visiblePasswords, [userId]: false });
+      return;
+    }
+    const input = prompt('Ingrese la contraseña para acceder:');
+    if (input === 'contraseña.segura2') {
+      setVisiblePasswords({ ...visiblePasswords, [userId]: true });
+    } else if (input !== null) {
+      alert('Contraseña incorrecta');
+    }
+  };
+
+  const handleToggleAccountStatus = async (userId: string, currentApproved: boolean) => {
+    const input = prompt('Ingrese la contraseña para habilitar/deshabilitar la cuenta:');
+    if (input === 'admin.habilitar') {
+      try {
+        const action = currentApproved ? 'disable' : 'enable';
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, action }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          fetchAccounts();
+          fetchRequests();
+        } else {
+          alert(data.error || 'Error al cambiar el estado de la cuenta');
+        }
+      } catch (err) {
+        alert('Error de red al procesar el cambio de estado');
+      }
+    } else if (input !== null) {
+      alert('Contraseña incorrecta');
+    }
+  };
+
   const fetchStudentInfo = async () => {
     setStudentInfoLoading(true);
     setStudentInfoError('');
@@ -193,8 +255,12 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (user && user.role === 'ADMIN' && activeTab === 'requests') {
-      fetchRequests();
+    if (user && user.role === 'ADMIN') {
+      if (activeTab === 'requests') {
+        fetchRequests();
+      } else if (activeTab === 'accounts') {
+        fetchAccounts();
+      }
     }
   }, [user, activeTab]);
 
@@ -292,6 +358,14 @@ export default function Home() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
+
+    // Validar el formato y dominios del correo electrónico
+    const emailRegex = /^[^@]+@(gmail\.com|hotmail\.com|outlook\.com)$/i;
+    if (!emailRegex.test(regEmail)) {
+      setRegError('El correo electrónico debe contener un texto antes del @ y pertenecer a uno de los dominios permitidos: @gmail.com, @hotmail.com o @outlook.com');
+      return;
+    }
+
     setRegSubmitting(true);
     try {
       const res = await fetch('/api/auth/register', {
@@ -380,18 +454,39 @@ export default function Home() {
 
   const handlePredict = async (e: React.FormEvent) => {
     e.preventDefault();
+    const hoursVal = Number(simHours);
+    const attendanceVal = Number(simAttendance);
+    const participationVal = Number(simParticipation);
+
+    if (isNaN(hoursVal) || hoursVal < 0 || hoursVal > 40) {
+      alert('Las Horas de Estudio Semanales no pueden ser mayores a 40 ni menores a 0.');
+      return;
+    }
+    if (isNaN(attendanceVal) || attendanceVal < 0 || attendanceVal > 100) {
+      alert('El Porcentaje de Asistencia no puede ser mayor al 100% ni menor al 0%.');
+      return;
+    }
+    if (isNaN(participationVal) || participationVal < 1 || participationVal > 10) {
+      alert('La Participación debe ser un número entre 1 y 10.');
+      return;
+    }
+
     setSimLoading(true);
     try {
       const res = await fetch('/api/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          hours: Number(simHours),
-          attendance: Number(simAttendance),
-          participation: Number(simParticipation),
+          hours: hoursVal,
+          attendance: attendanceVal,
+          participation: participationVal,
         }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al obtener la predicción');
+        return;
+      }
       setSimResult(data);
     } catch (err) {
       console.error(err);
@@ -903,7 +998,7 @@ export default function Home() {
                         type="number"
                         step="0.1"
                         min="0"
-                        max="50"
+                        max="40"
                         required
                         value={simHours}
                         onChange={(e) => setSimHours(e.target.value)}
@@ -1091,6 +1186,19 @@ export default function Home() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('accounts');
+                fetchAccounts();
+              }}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+                activeTab === 'accounts'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              Administrar cuentas
+            </button>
           </div>
         )}
 
@@ -1180,6 +1288,116 @@ export default function Home() {
                             className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition active:scale-95 cursor-pointer"
                           >
                             Rechazar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'accounts' && user.role === 'ADMIN' ? (
+          <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Users className="w-5 h-5 text-indigo-500 animate-bounce" />
+                  Administrar Cuentas de Usuario
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Ver todas las cuentas registradas en el sistema, visualizar contraseñas o habilitar/deshabilitar accesos.
+                </p>
+              </div>
+              <button
+                onClick={fetchAccounts}
+                className="px-3.5 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl transition cursor-pointer"
+              >
+                Refrescar
+              </button>
+            </div>
+
+            {accountsLoading && (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
+                <div className="w-8 h-8 border-4 border-indigo-200 dark:border-indigo-500/20 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin mb-2.5"></div>
+                <span className="text-xs uppercase tracking-wider font-semibold">Cargando cuentas...</span>
+              </div>
+            )}
+
+            {accountsError && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span>{accountsError}</span>
+              </div>
+            )}
+
+            {!accountsLoading && !accountsError && accounts.length === 0 && (
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">
+                No hay cuentas de usuario registradas.
+              </div>
+            )}
+
+            {!accountsLoading && !accountsError && accounts.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black">
+                      <th className="py-3 px-4">Nombre</th>
+                      <th className="py-3 px-4">Correo</th>
+                      <th className="py-3 px-4">Rol</th>
+                      <th className="py-3 px-4">Contraseña</th>
+                      <th className="py-3 px-4">Estado</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs font-medium">
+                    {accounts.map((acc) => (
+                      <tr key={acc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition duration-155">
+                        <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{acc.name}</td>
+                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">{acc.email}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            acc.role === 'ADMIN'
+                              ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                              : acc.role === 'PROFESOR'
+                              ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {acc.role}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono">
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {visiblePasswords[acc.id] ? acc.password : '***'}
+                            </span>
+                            <button
+                              onClick={() => handleViewPassword(acc.id)}
+                              className="text-indigo-600 dark:text-indigo-400 hover:underline text-[10px] font-bold cursor-pointer"
+                            >
+                              {visiblePasswords[acc.id] ? 'Ocultar' : 'Ver'}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            acc.approved
+                              ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                          }`}>
+                            {acc.approved ? 'Habilitado' : 'Deshabilitado'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={() => handleToggleAccountStatus(acc.id, acc.approved)}
+                            className={`px-3 py-1 text-white font-bold rounded-lg transition active:scale-95 cursor-pointer ${
+                              acc.approved
+                                ? 'bg-amber-600 hover:bg-amber-700'
+                                : 'bg-emerald-600 hover:bg-emerald-700'
+                            }`}
+                          >
+                            {acc.approved ? 'Deshabilitar' : 'Habilitar'}
                           </button>
                         </td>
                       </tr>
@@ -1381,7 +1599,7 @@ export default function Home() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max="50"
+                      max="40"
                       required
                       value={simHours}
                       onChange={(e) => setSimHours(e.target.value)}
